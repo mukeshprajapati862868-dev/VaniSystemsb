@@ -196,7 +196,6 @@
 // module.exports = { app, io };
 
 
-
 // ==================== DNS FIX FOR MONGODB ATLAS (MUST BE ON TOP) ====================
 const dns = require('dns');
 dns.setServers(['1.1.1.1', '8.8.8.8']);
@@ -534,3 +533,4 @@ module.exports = {
   app,
   io
 };
+
