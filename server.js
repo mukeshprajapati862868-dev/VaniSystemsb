@@ -265,7 +265,10 @@ app.use('/uploads', express.static(uploadsRoot));
 // Allowed Origins List for Full Security
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://vani-systems-ouit.vercel.app'
+  'https://vani-systems-ouit.vercel.app',
+  'http://rishabh.vanisystems.in',
+  'https://rishabh.vanisystems.in'
+
 ];
 
 // Socket.io setup with multi-origin CORS support
