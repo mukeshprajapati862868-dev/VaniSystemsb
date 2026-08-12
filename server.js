@@ -268,19 +268,13 @@ try {
 app.use('/uploads', express.static(uploadsRoot));
 // ===============================================================
 
-// Allowed Origins List for Full Security
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://vani-systems-ouit.vercel.app',
-  'http://rishabh.vanisystems.in',
-  'https://rishabh.vanisystems.in'
+// Allow all origins
+const allowedOrigins = true;
 
-];
-
-// Socket.io setup with multi-origin CORS support
+// Socket.io setup with CORS support
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigins,
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true
   }
@@ -341,37 +335,11 @@ app.use(
   })
 );
 
-// CORS Dynamic Configuration for Production & Local Security
+// CORS - allow all origins
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(
-          new Error(
-            'CORS Policy: This origin is not allowed by Vani Systems Security!'
-          )
-        );
-      }
-    },
-
-    credentials: true,
-
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'DELETE',
-      'PATCH',
-      'OPTIONS'
-    ],
-
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With'
-    ]
+    origin: true,
+    credentials: true
   })
 );
 
