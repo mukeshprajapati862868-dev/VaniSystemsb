@@ -1,201 +1,3 @@
-// // ==================== DNS FIX FOR MONGODB ATLAS (MUST BE ON TOP) ====================
-// const dns = require('dns');
-// dns.setServers(['1.1.1.1', '8.8.8.8']); 
-// // ===================================================================================
-
-// require('dotenv').config();
-// const express = require('express');
-// const cors = require('cors');
-// const helmet = require('helmet');
-// const compression = require('compression');
-// const morgan = require('morgan');
-// const cookieParser = require('cookie-parser');
-// const rateLimit = require('express-rate-limit');
-// const { createServer } = require('http');
-// const { Server } = require('socket.io');
-
-// // Import database connection
-// const connectDB = require('./config/db');
-
-// // Import routes (FIXED PATHS WITH CAPITAL 'R')
-// const authRoutes = require('./Routes/auth');
-// const userRoutes = require('./Routes/users');
-// const productRoutes = require('./Routes/products');
-// const orderRoutes = require('./Routes/orders');
-// const paymentRoutes = require('./Routes/payments');
-// const cartRoutes = require('./Routes/cart');
-// const wishlistRoutes = require('./Routes/wishlist');
-// const addressRoutes = require('./Routes/addresses');
-// const notificationRoutes = require('./Routes/notifications');
-// const couponRoutes = require('./Routes/coupons');
-// const dashboardRoutes = require('./Routes/dashboard');
-
-// // Initialize Express app
-// const app = express();
-// const httpServer = createServer(app);
-
-// // FIX: Binds a fallback storage instance context object to Express.
-// app.set('db', { users: [], wishlists: [], products: [] });
-
-// // Allowed Origins List for Full Security
-// const allowedOrigins = [
-//   'http://localhost:5173',
-//   'https://vani-systems-ouit.vercel.app'
-// ];
-
-// // Socket.io setup with multi-origin CORS support
-// const io = new Server(httpServer, {
-//   cors: {
-//     origin: allowedOrigins,
-//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-//     credentials: true
-//   }
-// });
-
-// // Make io accessible to routes
-// app.set('io', io);
-
-// // Security middleware (Helmet Policy Updated for Frontend & Backend Connectivity)
-// app.use(helmet({
-//   contentSecurityPolicy: {
-//     directives: {
-//       defaultSrc: ["'self'"],
-//       styleSrc: ["'self'", "'unsafe-inline'", "https://jsdelivr.net"],
-//       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://jsdelivr.net"],
-//       imgSrc: ["'self'", "data:", "https:", "https://unsplash.com"],
-//       connectSrc: ["'self'", "https://razorpay.com", "http://localhost:5000", "https://vani-systems-ouit.vercel.app"],
-//       fontSrc: ["'self'", "https://gstatic.com"],
-//       objectSrc: ["'none'"],
-//       mediaSrc: ["'self'"],
-//       frameSrc: ["'none'"]
-//     }
-//   },
-//   crossOriginEmbedderPolicy: false
-// }));
-
-// // CORS Dynamic Configuration for Production & Local Security
-// app.use(cors({
-//   origin: function (origin, callback) {
-//     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-//       callback(null, true);
-//     } else {
-//       callback(new Error('CORS Policy: This origin is not allowed by Vani Systems Security!'));
-//     }
-//   },
-//   credentials: true,
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-// }));
-
-// // Rate limiting
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, 
-//   max: 5000,
-//   message: {
-//     error: 'Too many requests from this IP, please try again later.'
-//   },
-//   standardHeaders: true,
-//   legacyHeaders: false
-// });
-
-// app.use('/api/', limiter);
-
-// // Body parsing middleware
-// app.use(express.json({ limit: '50mb' }));
-// app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-// app.use(cookieParser());
-
-// // Compression middleware
-// app.use(compression());
-
-// // Logging middleware
-// if (process.env.NODE_ENV === 'development') {
-//   app.use(morgan('dev'));
-// } else {
-//   app.use(morgan('combined'));
-// }
-
-// // Socket.io connection handling
-// io.on('connection', (socket) => {
-//   console.log(`User connected: ${socket.id}`);
-
-//   socket.on('join-user-room', (userId) => {
-//     socket.join(`user-${userId}`);
-//     console.log(`User ${userId} joined their room`);
-//   });
-
-//   socket.on('join-admin-room', () => {
-//     socket.join('admin-room');
-//     console.log('Admin joined admin room');
-//   });
-
-//   socket.on('disconnect', () => {
-//     console.log(`User disconnected: ${socket.id}`);
-//   });
-// });
-
-// // API Routes (FIXED ADMIN PATH WITH CAPITAL 'R')
-// app.use('/api/auth', authRoutes);
-// app.use("/api/admin", require("./Routes/adminRoutes"));
-// app.use('/api/users', userRoutes);
-// app.use('/api/products', productRoutes);
-// app.use('/api/orders', orderRoutes);
-// app.use('/api/payments', paymentRoutes);
-// app.use('/api/cart', cartRoutes);
-// app.use('/api/wishlist', wishlistRoutes);
-// app.use('/api/addresses', addressRoutes);
-// app.use('/api/notifications', notificationRoutes);
-// app.use('/api/coupons', couponRoutes);
-// app.use('/api/dashboard', dashboardRoutes);
-
-// // Health check endpoint
-// app.get('/api/health', (req, res) => {
-//   res.status(200).json({
-//     status: 'success',
-//     message: 'Server is running',
-//     timestamp: new Date().toISOString()
-//   });
-// });
-
-// // Import middleware (Placed correctly before handlers)
-// const errorHandler = require('./middleware/errorHandler');
-// const notFound = require('./middleware/notFound');
-
-// // 404 handler
-// app.use(notFound);
-
-// // Global error handler
-// app.use(errorHandler);
-
-// // Start server
-// const PORT = process.env.PORT || 5000;
-
-// const startServer = async () => {
-//   await connectDB();
-  
-//   httpServer.listen(PORT, () => {
-//     console.log(`Server running on port ${PORT}`);
-//     console.log(`Auth routes mounted at /api/auth`);
-//   });
-// };
-
-// // Handle unhandled promise rejections
-// process.on('unhandledRejection', (err) => {
-//   console.error(`Unhandled Rejection: ${err.message}`);
-//   httpServer.close(() => process.exit(1));
-// });
-
-// // Handle uncaught exceptions
-// process.on('uncaughtException', (err) => {
-//   console.error(`Uncaught Exception: ${err.message}`);
-//   process.exit(1);
-// });
-
-// startServer();
-
-// module.exports = { app, io };
-
-
 // ==================== DNS FIX FOR MONGODB ATLAS (MUST BE ON TOP) ====================
 const dns = require('dns');
 dns.setServers(['1.1.1.1', '8.8.8.8']);
@@ -218,7 +20,7 @@ const fs = require('fs');
 // Import database connection
 const connectDB = require('./config/db');
 
-// Import routes (FIXED PATHS WITH CAPITAL 'R')
+// Import routes
 const authRoutes = require('./Routes/auth');
 const userRoutes = require('./Routes/users');
 const productRoutes = require('./Routes/products');
@@ -241,9 +43,14 @@ const app = express();
 const httpServer = createServer(app);
 
 // FIX: Binds a fallback storage instance context object to Express.
-app.set('db', { users: [], wishlists: [], products: [] });
+app.set('db', {
+  users: [],
+  wishlists: [],
+  products: []
+});
 
 // ==================== UPLOADS CONFIGURATION ====================
+
 const uploadsRoot = path.join(__dirname, 'uploads');
 
 try {
@@ -254,45 +61,114 @@ try {
   fs.mkdirSync(path.join(uploadsRoot, 'gallery'), {
     recursive: true
   });
+
+  console.log('Uploads folders initialized successfully.');
 } catch (e) {
-  console.error('Uploads folder initialization error:', e.message);
+  console.error(
+    'Uploads folder initialization error:',
+    e.message
+  );
 }
 
 // Serve uploaded files publicly
-app.use('/uploads', express.static(uploadsRoot));
+app.use(
+  '/uploads',
+  express.static(uploadsRoot)
+);
+
 // ===============================================================
 
-// Allowed Origins List for Full Security
+// ==================== ALLOWED ORIGINS ====================
+
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:3000',
+
   'https://vani-systems-ouit.vercel.app',
+
   'http://rishabh.vanisystems.in',
   'https://rishabh.vanisystems.in'
-
 ];
 
-// Socket.io setup with multi-origin CORS support
-const io = new Server(httpServer, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    credentials: true
-  }
-});
+// ===============================================================
 
-// Make io accessible to routes
-app.set('io', io);
+// ==================== CORS CONFIGURATION ====================
 
-// Security middleware (Helmet Policy Updated for Frontend & Backend Connectivity)
+const corsOptions = {
+  origin: function (origin, callback) {
+
+    // Allow requests without Origin header
+    // Useful for Postman, server-to-server requests, health checks, etc.
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.error(
+      `CORS BLOCKED ORIGIN: ${origin}`
+    );
+
+    return callback(
+      new Error(
+        'CORS Policy: This origin is not allowed by Vani Systems Security!'
+      )
+    );
+  },
+
+  credentials: true,
+
+  methods: [
+    'GET',
+    'POST',
+    'PUT',
+    'DELETE',
+    'PATCH',
+    'OPTIONS'
+  ],
+
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+
+  exposedHeaders: [
+    'Content-Length',
+    'Content-Type'
+  ],
+
+  optionsSuccessStatus: 204
+};
+
+// IMPORTANT:
+// CORS middleware must be registered before API routes.
+app.use(cors(corsOptions));
+
+// Explicitly handle browser preflight requests.
+app.options('*', cors(corsOptions));
+
+// ===============================================================
+
+// ==================== SECURITY MIDDLEWARE ====================
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
-        defaultSrc: ["'self'"],
+
+        defaultSrc: [
+          "'self'"
+        ],
 
         styleSrc: [
           "'self'",
           "'unsafe-inline'",
+          'https://cdn.jsdelivr.net',
           'https://jsdelivr.net'
         ],
 
@@ -300,34 +176,76 @@ app.use(
           "'self'",
           "'unsafe-inline'",
           "'unsafe-eval'",
-          'https://jsdelivr.net'
+          'https://cdn.jsdelivr.net',
+          'https://jsdelivr.net',
+          'https://checkout.razorpay.com'
         ],
 
         imgSrc: [
           "'self'",
           'data:',
+          'blob:',
           'https:',
           'http:',
-          'https://unsplash.com'
+          'https://unsplash.com',
+          'https://images.unsplash.com'
         ],
 
         connectSrc: [
           "'self'",
-          'https://razorpay.com',
+
           'http://localhost:5000',
+
+          'https://localhost:5000',
+
+          'https://razorpay.com',
+
+          'https://api.razorpay.com',
+
+          'https://api-rishabh.vanisystems.in',
+
+          'https://rishabh.vanisystems.in',
+
           'https://vani-systems-ouit.vercel.app'
         ],
 
         fontSrc: [
           "'self'",
+          'data:',
+          'https://fonts.googleapis.com',
+          'https://fonts.gstatic.com',
           'https://gstatic.com'
         ],
 
-        objectSrc: ["'none'"],
+        objectSrc: [
+          "'none'"
+        ],
 
-        mediaSrc: ["'self'"],
+        mediaSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https:',
+          'http:'
+        ],
 
-        frameSrc: ["'none'"]
+        frameSrc: [
+          "'self'",
+          'https://api.razorpay.com',
+          'https://checkout.razorpay.com'
+        ],
+
+        frameAncestors: [
+          "'self'"
+        ],
+
+        baseUri: [
+          "'self'"
+        ],
+
+        formAction: [
+          "'self'"
+        ]
       }
     },
 
@@ -335,41 +253,10 @@ app.use(
   })
 );
 
-// CORS Dynamic Configuration for Production & Local Security
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(
-          new Error(
-            'CORS Policy: This origin is not allowed by Vani Systems Security!'
-          )
-        );
-      }
-    },
+// ===============================================================
 
-    credentials: true,
+// ==================== RATE LIMITING ====================
 
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'DELETE',
-      'PATCH',
-      'OPTIONS'
-    ],
-
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With'
-    ]
-  })
-);
-
-// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
 
@@ -381,13 +268,27 @@ const limiter = rateLimit({
 
   standardHeaders: true,
 
-  legacyHeaders: false
+  legacyHeaders: false,
+
+  skip: (req) => {
+    return req.path === '/health';
+  }
 });
 
-app.use('/api/', limiter);
+app.use(
+  '/api/',
+  limiter
+);
 
-// Body parsing middleware
-app.use(express.json({ limit: '50mb' }));
+// ===============================================================
+
+// ==================== BODY PARSING ====================
+
+app.use(
+  express.json({
+    limit: '50mb'
+  })
+);
 
 app.use(
   express.urlencoded({
@@ -398,69 +299,235 @@ app.use(
 
 app.use(cookieParser());
 
-// Compression middleware
-app.use(compression());
+// ===============================================================
 
-// Logging middleware
+// ==================== COMPRESSION ====================
+
+app.use(
+  compression()
+);
+
+// ===============================================================
+
+// ==================== LOGGING ====================
+
 if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
+  app.use(
+    morgan('dev')
+  );
 } else {
-  app.use(morgan('combined'));
+  app.use(
+    morgan('combined')
+  );
 }
 
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
+// ===============================================================
 
-  socket.on('join-user-room', (userId) => {
-    socket.join(`user-${userId}`);
+// ==================== CORS DEBUG MIDDLEWARE ====================
 
-    console.log(
-      `User ${userId} joined their room`
+app.use((req, res, next) => {
+
+  const origin = req.headers.origin;
+
+  if (
+    origin &&
+    allowedOrigins.includes(origin)
+  ) {
+    res.header(
+      'Access-Control-Allow-Origin',
+      origin
     );
-  });
 
-  socket.on('join-admin-room', () => {
-    socket.join('admin-room');
-
-    console.log('Admin joined admin room');
-  });
-
-  socket.on('disconnect', () => {
-    console.log(
-      `User disconnected: ${socket.id}`
+    res.header(
+      'Access-Control-Allow-Credentials',
+      'true'
     );
-  });
+
+    res.header(
+      'Access-Control-Allow-Methods',
+      'GET,POST,PUT,DELETE,PATCH,OPTIONS'
+    );
+
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+    );
+  }
+
+  if (req.method === 'OPTIONS') {
+
+    if (
+      !origin ||
+      allowedOrigins.includes(origin)
+    ) {
+      return res.sendStatus(204);
+    }
+
+    return res.status(403).json({
+      success: false,
+      message: 'CORS preflight request blocked.'
+    });
+  }
+
+  next();
 });
+
+// ===============================================================
+
+// ==================== SOCKET.IO SETUP ====================
+
+const io = new Server(
+  httpServer,
+  {
+    cors: {
+      origin: allowedOrigins,
+
+      methods: [
+        'GET',
+        'POST',
+        'PUT',
+        'DELETE',
+        'PATCH',
+        'OPTIONS'
+      ],
+
+      credentials: true
+    },
+
+    transports: [
+      'websocket',
+      'polling'
+    ]
+  }
+);
+
+// Make io accessible to routes
+app.set(
+  'io',
+  io
+);
+
+// ===============================================================
+
+// ==================== SOCKET.IO CONNECTION ====================
+
+io.on(
+  'connection',
+  (socket) => {
+
+    console.log(
+      `User connected: ${socket.id}`
+    );
+
+    socket.on(
+      'join-user-room',
+      (userId) => {
+
+        if (!userId) {
+          return;
+        }
+
+        socket.join(
+          `user-${userId}`
+        );
+
+        console.log(
+          `User ${userId} joined their room`
+        );
+      }
+    );
+
+    socket.on(
+      'join-admin-room',
+      () => {
+
+        socket.join(
+          'admin-room'
+        );
+
+        console.log(
+          'Admin joined admin room'
+        );
+      }
+    );
+
+    socket.on(
+      'disconnect',
+      () => {
+
+        console.log(
+          `User disconnected: ${socket.id}`
+        );
+      }
+    );
+  }
+);
+
+// ===============================================================
 
 // ==================== API ROUTES ====================
 
-app.use('/api/auth', authRoutes);
+app.use(
+  '/api/auth',
+  authRoutes
+);
 
 app.use(
   '/api/admin',
   require('./Routes/adminRoutes')
 );
 
-app.use('/api/users', userRoutes);
+app.use(
+  '/api/users',
+  userRoutes
+);
 
-app.use('/api/products', productRoutes);
+app.use(
+  '/api/products',
+  productRoutes
+);
 
-app.use('/api/orders', orderRoutes);
+app.use(
+  '/api/orders',
+  orderRoutes
+);
 
-app.use('/api/payments', paymentRoutes);
+app.use(
+  '/api/payments',
+  paymentRoutes
+);
 
-app.use('/api/cart', cartRoutes);
+app.use(
+  '/api/cart',
+  cartRoutes
+);
 
-app.use('/api/wishlist', wishlistRoutes);
+app.use(
+  '/api/wishlist',
+  wishlistRoutes
+);
 
-app.use('/api/addresses', addressRoutes);
+app.use(
+  '/api/addresses',
+  addressRoutes
+);
 
-app.use('/api/notifications', notificationRoutes);
+app.use(
+  '/api/notifications',
+  notificationRoutes
+);
 
-app.use('/api/coupons', couponRoutes);
+app.use(
+  '/api/coupons',
+  couponRoutes
+);
 
-app.use('/api/dashboard', dashboardRoutes);
+app.use(
+  '/api/dashboard',
+  dashboardRoutes
+);
+
+// ===============================================================
 
 // ==================== CANDIDATE API ====================
 
@@ -469,6 +536,8 @@ app.use(
   candidateRoutes
 );
 
+// ===============================================================
+
 // ==================== GALLERY API ====================
 
 app.use(
@@ -476,64 +545,230 @@ app.use(
   galleryRoutes
 );
 
-// ============================================================
+// ===============================================================
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
-  });
-});
+// ==================== HEALTH CHECK ====================
 
-// Import middleware (Placed correctly before handlers)
+app.get(
+  '/api/health',
+  (req, res) => {
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Server is running',
+      timestamp: new Date().toISOString()
+    });
+  }
+);
+
+// Simple root API response
+app.get(
+  '/',
+  (req, res) => {
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Vani Systems API is running',
+      api: 'https://api-rishabh.vanisystems.in',
+      health: '/api/health'
+    });
+  }
+);
+
+// ===============================================================
+
+// ==================== 404 + ERROR HANDLERS ====================
+
 const errorHandler = require('./middleware/errorHandler');
 const notFound = require('./middleware/notFound');
 
 // 404 handler
-app.use(notFound);
+app.use(
+  notFound
+);
 
 // Global error handler
-app.use(errorHandler);
+app.use(
+  errorHandler
+);
 
-// Start server
+// ===============================================================
+
+// ==================== START SERVER ====================
+
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
-  await connectDB();
 
-  httpServer.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Auth routes mounted at /api/auth`);
-    console.log(`Candidate routes mounted at /api/candidates`);
-    console.log(`Gallery routes mounted at /api/gallery`);
-    console.log(`Uploads served from /uploads`);
-  });
+  try {
+
+    await connectDB();
+
+    httpServer.listen(
+      PORT,
+      '0.0.0.0',
+      () => {
+
+        console.log(
+          '=============================================='
+        );
+
+        console.log(
+          `Server running on port ${PORT}`
+        );
+
+        console.log(
+          'Server host: 0.0.0.0'
+        );
+
+        console.log(
+          `Environment: ${process.env.NODE_ENV || 'production'}`
+        );
+
+        console.log(
+          '=============================================='
+        );
+
+        console.log(
+          'Auth routes mounted at /api/auth'
+        );
+
+        console.log(
+          'Admin routes mounted at /api/admin'
+        );
+
+        console.log(
+          'Users routes mounted at /api/users'
+        );
+
+        console.log(
+          'Products routes mounted at /api/products'
+        );
+
+        console.log(
+          'Orders routes mounted at /api/orders'
+        );
+
+        console.log(
+          'Payments routes mounted at /api/payments'
+        );
+
+        console.log(
+          'Cart routes mounted at /api/cart'
+        );
+
+        console.log(
+          'Wishlist routes mounted at /api/wishlist'
+        );
+
+        console.log(
+          'Addresses routes mounted at /api/addresses'
+        );
+
+        console.log(
+          'Notifications routes mounted at /api/notifications'
+        );
+
+        console.log(
+          'Coupons routes mounted at /api/coupons'
+        );
+
+        console.log(
+          'Dashboard routes mounted at /api/dashboard'
+        );
+
+        console.log(
+          'Candidate routes mounted at /api/candidates'
+        );
+
+        console.log(
+          'Gallery routes mounted at /api/gallery'
+        );
+
+        console.log(
+          'Uploads served from /uploads'
+        );
+
+        console.log(
+          'Allowed frontend origin: https://rishabh.vanisystems.in'
+        );
+
+        console.log(
+          'API URL: https://api-rishabh.vanisystems.in'
+        );
+
+        console.log(
+          '=============================================='
+        );
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      'Failed to start server:',
+      error.message
+    );
+
+    process.exit(1);
+  }
 };
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error(
-    `Unhandled Rejection: ${err.message}`
-  );
+// ===============================================================
 
-  httpServer.close(() => process.exit(1));
-});
+// ==================== UNHANDLED REJECTION ====================
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error(
-    `Uncaught Exception: ${err.message}`
-  );
+process.on(
+  'unhandledRejection',
+  (err) => {
 
-  process.exit(1);
-});
+    console.error(
+      `Unhandled Rejection: ${err.message}`
+    );
+
+    console.error(
+      err.stack
+    );
+
+    httpServer.close(
+      () => {
+        process.exit(1);
+      }
+    );
+  }
+);
+
+// ===============================================================
+
+// ==================== UNCAUGHT EXCEPTION ====================
+
+process.on(
+  'uncaughtException',
+  (err) => {
+
+    console.error(
+      `Uncaught Exception: ${err.message}`
+    );
+
+    console.error(
+      err.stack
+    );
+
+    process.exit(1);
+  }
+);
+
+// ===============================================================
+
+// ==================== START APPLICATION ====================
 
 startServer();
+
+// ===============================================================
+
+// ==================== EXPORTS ====================
 
 module.exports = {
   app,
   io
 };
-
