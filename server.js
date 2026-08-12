@@ -342,10 +342,10 @@ app.use(cors(corsOptions));
 // "Response to preflight request doesn't pass access control check"
 // ===============================================================
 
-app.options(
-  '*',
-  cors(corsOptions)
-);
+// app.options(
+//   '*',
+//   cors(corsOptions)
+// );
 
 // ==================== EXTRA PREFLIGHT SAFETY ====================
 // Ensures OPTIONS receives the required headers even when
