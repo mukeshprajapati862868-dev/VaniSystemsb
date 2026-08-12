@@ -1,177 +1,415 @@
-// ==================== DNS FIX FOR MONGODB ATLAS (MUST BE ON TOP) ====================
-const dns = require('dns');
-dns.setServers(['1.1.1.1', '8.8.8.8']);
-// ===================================================================================
+// ================================================================
+// DNS FIX FOR MONGODB ATLAS
+// MUST BE ON TOP
+// ================================================================
+const dns = require("dns");
 
-require('dotenv').config();
+dns.setServers([
+  "1.1.1.1",
+  "8.8.8.8"
+]);
 
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
-const rateLimit = require('express-rate-limit');
-const { createServer } = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
-const fs = require('fs');
+// ================================================================
+// ENVIRONMENT
+// ================================================================
+require("dotenv").config();
 
-// ==================== IMPORT DATABASE CONNECTION ====================
-const connectDB = require('./config/db');
+// ================================================================
+// CORE IMPORTS
+// ================================================================
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const compression = require("compression");
+const morgan = require("morgan");
+const cookieParser = require("cookie-parser");
+const rateLimit = require("express-rate-limit");
 
-// ==================== IMPORT ROUTES ====================
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const productRoutes = require('./routes/products');
-const orderRoutes = require('./routes/orders');
-const paymentRoutes = require('./routes/payments');
-const cartRoutes = require('./routes/cart');
-const wishlistRoutes = require('./routes/wishlist');
-const addressRoutes = require('./routes/addresses');
-const notificationRoutes = require('./routes/notifications');
-const couponRoutes = require('./routes/coupons');
-const dashboardRoutes = require('./routes/dashboard');
-const adminRoutes = require('./routes/adminRoutes');
-const candidateRoutes = require('./routes/candidates');
-const galleryRoutes = require('./routes/gallery');
+const { createServer } = require("http");
+const { Server } = require("socket.io");
 
-// ==================== IMPORT CONTROLLERS ====================
-const galleryController = require('./controllers/galleryController');
+const path = require("path");
+const fs = require("fs");
 
-// ==================== IMPORT MIDDLEWARE ====================
-const errorHandler = require('./middleware/errorHandler');
-const notFound = require('./middleware/notFound');
+// ================================================================
+// DATABASE
+// ================================================================
+const connectDB = require("./config/db");
 
-// ==================== INITIALIZE EXPRESS APP ====================
+// ================================================================
+// ROUTES
+// ================================================================
+const authRoutes = require("./routes/auth");
+const userRoutes = require("./routes/users");
+const productRoutes = require("./routes/products");
+const orderRoutes = require("./routes/orders");
+const paymentRoutes = require("./routes/payments");
+const cartRoutes = require("./routes/cart");
+const wishlistRoutes = require("./routes/wishlist");
+const addressRoutes = require("./routes/addresses");
+const notificationRoutes = require("./routes/notifications");
+const couponRoutes = require("./routes/coupons");
+const dashboardRoutes = require("./routes/dashboard");
+const adminRoutes = require("./routes/adminRoutes");
+const candidateRoutes = require("./routes/candidates");
+const galleryRoutes = require("./routes/gallery");
+
+// ================================================================
+// MIDDLEWARE
+// ================================================================
+const errorHandler = require("./middleware/errorHandler");
+const notFound = require("./middleware/notFound");
+
+// ================================================================
+// INITIALIZE EXPRESS
+// ================================================================
 const app = express();
 const httpServer = createServer(app);
 
-// ==================== FALLBACK STORAGE ====================
-// This prevents middleware/auth.js from throwing:
-// "Storage not initialized"
-// ===============================================================
-app.set('db', {
+// ================================================================
+// FALLBACK STORAGE
+// ================================================================
+app.set("db", {
   users: [],
   wishlists: [],
   products: []
 });
 
-// ==================== UPLOADS CONFIGURATION ====================
-const uploadsRoot = path.join(__dirname, 'uploads');
+// ================================================================
+// UPLOADS CONFIGURATION
+// ================================================================
+const uploadsRoot = path.join(
+  __dirname,
+  "uploads"
+);
 
 try {
-  fs.mkdirSync(path.join(uploadsRoot, 'candidates'), {
-    recursive: true
-  });
+  fs.mkdirSync(
+    path.join(
+      uploadsRoot,
+      "candidates"
+    ),
+    {
+      recursive: true
+    }
+  );
 
-  fs.mkdirSync(path.join(uploadsRoot, 'gallery'), {
-    recursive: true
-  });
+  fs.mkdirSync(
+    path.join(
+      uploadsRoot,
+      "gallery"
+    ),
+    {
+      recursive: true
+    }
+  );
 
-  console.log('Uploads folders initialized successfully');
-} catch (e) {
+  console.log(
+    "Uploads directories initialized successfully."
+  );
+} catch (error) {
   console.error(
-    'Uploads folder initialization error:',
-    e.message
+    "Uploads directory initialization error:",
+    error.message
   );
 }
 
-// ==================== SERVE UPLOADED FILES ====================
-// Public upload route
+// ================================================================
+// SERVE UPLOADED FILES
+// ================================================================
+
+// Public uploads
 app.use(
-  '/api/uploads',
-  express.static(uploadsRoot, {
-    fallthrough: true
-  })
+  "/uploads",
+  express.static(
+    uploadsRoot,
+    {
+      fallthrough: true,
+      index: false
+    }
+  )
 );
 
-// Also serve uploads directly if required by existing frontend
+// API uploads
 app.use(
-  '/uploads',
-  express.static(uploadsRoot, {
-    fallthrough: true
-  })
+  "/api/uploads",
+  express.static(
+    uploadsRoot,
+    {
+      fallthrough: true,
+      index: false
+    }
+  )
 );
 
-// ==================== CORS (ALLOW ALL ORIGINS) ====================
+// ================================================================
+// CORS CONFIGURATION
+// ================================================================
+//
+// Production Frontend:
+// https://rishabh.vanisystems.in
+//
+// Production API:
+// https://api-rishabh.vanisystems.in
+//
+// IMPORTANT:
+// API domain is NOT itself a frontend origin.
+// The frontend origin that needs CORS permission is:
+// https://rishabh.vanisystems.in
+// ================================================================
 
+// Default production frontend
+const productionFrontend =
+  "https://rishabh.vanisystems.in";
+
+// Default local frontend
+const localFrontend =
+  "http://localhost:5173";
+
+// ================================================================
+// BUILD ALLOWED ORIGINS
+// ================================================================
+const allowedOrigins = [
+  localFrontend,
+
+  "http://127.0.0.1:5173",
+
+  "http://rishabh.vanisystems.in",
+
+  productionFrontend,
+
+  "https://vani-systems-ouit.vercel.app"
+];
+
+// ================================================================
+// READ CORS_ORIGIN FROM .ENV
+// ================================================================
+if (
+  process.env.CORS_ORIGIN
+) {
+  const envOrigins =
+    process.env.CORS_ORIGIN
+      .split(",")
+      .map(
+        (origin) =>
+          origin.trim()
+      )
+      .filter(Boolean);
+
+  envOrigins.forEach(
+    (origin) => {
+
+      if (
+        !allowedOrigins.includes(
+          origin
+        )
+      ) {
+        allowedOrigins.push(
+          origin
+        );
+      }
+    }
+  );
+}
+
+// ================================================================
+// REMOVE DUPLICATE ORIGINS
+// ================================================================
+const uniqueAllowedOrigins =
+  [
+    ...new Set(
+      allowedOrigins
+    )
+  ];
+
+// ================================================================
+// LOG CORS CONFIGURATION
+// ================================================================
+console.log(
+  "Allowed CORS Origins:"
+);
+
+uniqueAllowedOrigins.forEach(
+  (origin) => {
+    console.log(
+      ` - ${origin}`
+    );
+  }
+);
+
+// ================================================================
+// CORS OPTIONS
+// ================================================================
 const corsOptions = {
-  origin: true,
-  credentials: true
-};
 
-// ==================== SOCKET.IO ====================
+  origin: function (
+    origin,
+    callback
+  ) {
 
-const io = new Server(httpServer, {
-  cors: {
-    origin: true,
-    credentials: true
+    // Allow requests without
+    // Origin header.
+    //
+    // Examples:
+    // curl
+    // Postman
+    // server-to-server
+    // health checks
+    if (!origin) {
+      return callback(
+        null,
+        true
+      );
+    }
+
+    // Allow approved origin
+    if (
+      uniqueAllowedOrigins.includes(
+        origin
+      )
+    ) {
+      return callback(
+        null,
+        true
+      );
+    }
+
+    // Reject unknown origin
+    console.error(
+      `CORS blocked origin: ${origin}`
+    );
+
+    return callback(
+      new Error(
+        `CORS Policy: Origin ${origin} is not allowed.`
+      )
+    );
   },
 
-  transports: [
-    'websocket',
-    'polling'
-  ]
-});
+  credentials: true,
 
-// Make Socket.IO accessible to routes
-app.set('io', io);
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE",
+    "PATCH",
+    "OPTIONS"
+  ],
 
-// ==================== HELMET SECURITY ====================
+  allowedHeaders: [
+    "Origin",
+    "Content-Type",
+    "Accept",
+    "Authorization",
+    "X-Requested-With",
+    "Cache-Control",
+    "Pragma"
+  ],
 
+  exposedHeaders: [
+    "Content-Length",
+    "Content-Type"
+  ],
+
+  optionsSuccessStatus: 204,
+
+  maxAge: 86400
+};
+
+// ================================================================
+// CORS MUST BE BEFORE API ROUTES
+// ================================================================
+app.use(
+  cors(
+    corsOptions
+  )
+);
+
+// ================================================================
+// EXPLICIT PREFLIGHT HANDLING
+// ================================================================
+//
+// Browser sends OPTIONS before some
+// GET/POST/PUT/PATCH/DELETE requests.
+//
+// This must be handled before routes.
+// ================================================================
+app.options(
+  "*",
+  cors(
+    corsOptions
+  )
+);
+
+// ================================================================
+// HELMET SECURITY
+// ================================================================
 app.use(
   helmet({
+
+    crossOriginEmbedderPolicy:
+      false,
+
+    crossOriginResourcePolicy: {
+      policy:
+        "cross-origin"
+    },
+
     contentSecurityPolicy: {
+
       directives: {
-        defaultSrc: ["'self'"],
+
+        defaultSrc: [
+          "'self'"
+        ],
 
         styleSrc: [
           "'self'",
           "'unsafe-inline'",
-          'https://cdn.jsdelivr.net',
-          'https://jsdelivr.net'
+          "https://cdn.jsdelivr.net",
+          "https://jsdelivr.net"
         ],
 
         scriptSrc: [
           "'self'",
           "'unsafe-inline'",
           "'unsafe-eval'",
-          'https://cdn.jsdelivr.net',
-          'https://jsdelivr.net'
+          "https://cdn.jsdelivr.net",
+          "https://jsdelivr.net"
         ],
 
         imgSrc: [
           "'self'",
-          'data:',
-          'blob:',
-          'https:',
-          'http:',
-          'https://unsplash.com'
+          "data:",
+          "blob:",
+          "https:",
+          "http:"
         ],
 
         connectSrc: [
           "'self'",
-          'https://api-rishabh.vanisystems.in',
-          'https://rishabh.vanisystems.in',
-          'https://vani-systems-ouit.vercel.app',
-          'https://razorpay.com',
-          'https://api.razorpay.com',
-          'http://localhost:5000',
-          'http://localhost:5173',
-          'http://127.0.0.1:5173',
-          'http://localhost:3000',
-          'http://127.0.0.1:3000',
-          'ws:',
-          'wss:'
+
+          "https://api-rishabh.vanisystems.in",
+
+          "https://rishabh.vanisystems.in",
+
+          "https://vani-systems-ouit.vercel.app",
+
+          "https://razorpay.com",
+
+          "https://api.razorpay.com",
+
+          "http://localhost:5000",
+
+          "http://127.0.0.1:5000"
         ],
 
         fontSrc: [
           "'self'",
-          'data:',
-          'https://fonts.googleapis.com',
-          'https://fonts.gstatic.com',
-          'https://gstatic.com'
+          "data:",
+          "https://fonts.gstatic.com",
+          "https://gstatic.com"
         ],
 
         objectSrc: [
@@ -180,324 +418,140 @@ app.use(
 
         mediaSrc: [
           "'self'",
-          'data:',
-          'blob:',
-          'https:',
-          'http:'
+          "data:",
+          "blob:",
+          "https:",
+          "http:"
         ],
 
         frameSrc: [
           "'self'",
-          'https://checkout.razorpay.com',
-          'https://razorpay.com'
+          "https://razorpay.com"
         ],
 
-        workerSrc: [
-          "'self'",
-          'blob:'
+        frameAncestors: [
+          "'self'"
         ],
 
-        manifestSrc: [
+        baseUri: [
+          "'self'"
+        ],
+
+        formAction: [
           "'self'"
         ]
       }
-    },
-
-    crossOriginEmbedderPolicy: false,
-
-    crossOriginResourcePolicy: {
-      policy: 'cross-origin'
     }
   })
 );
 
-// ==================== CORS MIDDLEWARE ====================
+// ================================================================
+// RATE LIMITING
+// ================================================================
+const limiter =
+  rateLimit({
 
-app.use(cors(corsOptions));
+    windowMs:
+      Number(
+        process.env.RATE_LIMIT_WINDOW_MS
+      ) ||
+      15 * 60 * 1000,
 
-// ==================== RATE LIMITING ====================
+    max:
+      Number(
+        process.env.RATE_LIMIT_MAX_REQUESTS
+      ) ||
+      5000,
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+    message: {
+      error:
+        "Too many requests from this IP, please try again later."
+    },
 
-  max: 5000,
+    standardHeaders:
+      true,
 
-  message: {
-    error:
-      'Too many requests from this IP, please try again later.'
-  },
+    legacyHeaders:
+      false
+  });
 
-  standardHeaders: true,
-
-  legacyHeaders: false,
-
-  skip: (req) => {
-    return req.method === 'OPTIONS';
-  }
-});
-
+// Apply rate limit to API
 app.use(
-  '/api/',
+  "/api/",
   limiter
 );
 
-// ==================== BODY PARSING ====================
-
+// ================================================================
+// BODY PARSER
+// ================================================================
 app.use(
   express.json({
-    limit: '50mb'
+    limit: "50mb"
   })
 );
 
 app.use(
   express.urlencoded({
     extended: true,
-    limit: '50mb'
+    limit: "50mb"
   })
 );
 
-app.use(cookieParser());
+// ================================================================
+// COOKIE PARSER
+// ================================================================
+app.use(
+  cookieParser()
+);
 
-// ==================== COMPRESSION ====================
+// ================================================================
+// COMPRESSION
+// ================================================================
+app.use(
+  compression()
+);
 
-app.use(compression());
-
-// ==================== LOGGING ====================
-
+// ================================================================
+// LOGGING
+// ================================================================
 if (
-  process.env.NODE_ENV === 'development'
+  process.env.NODE_ENV ===
+  "development"
 ) {
-  app.use(morgan('dev'));
+
+  app.use(
+    morgan("dev")
+  );
+
 } else {
-  app.use(morgan('combined'));
+
+  app.use(
+    morgan("combined")
+  );
 }
 
-// ==================== BASIC REQUEST DEBUGGING ====================
-
-app.use((req, res, next) => {
-  if (
-    req.method === 'OPTIONS'
-  ) {
-    console.log(
-      'CORS PREFLIGHT:',
-      req.method,
-      req.originalUrl,
-      'Origin:',
-      req.headers.origin,
-      'Request-Headers:',
-      req.headers['access-control-request-headers']
-    );
-  }
-
-  next();
-});
-
-// ==================== SOCKET.IO CONNECTION ====================
-
-io.on('connection', (socket) => {
-  console.log(
-    `User connected: ${socket.id}`
-  );
-
-  socket.on(
-    'join-user-room',
-    (userId) => {
-      socket.join(
-        `user-${userId}`
-      );
-
-      console.log(
-        `User ${userId} joined their room`
-      );
-    }
-  );
-
-  socket.on(
-    'join-admin-room',
-    () => {
-      socket.join(
-        'admin-room'
-      );
-
-      console.log(
-        'Admin joined admin room'
-      );
-    }
-  );
-
-  socket.on(
-    'disconnect',
-    () => {
-      console.log(
-        `User disconnected: ${socket.id}`
-      );
-    }
-  );
-});
-
-// ============================================================
-// ==================== API ROUTES ============================
-// ============================================================
-
-// ==================== AUTH ====================
-
-app.use(
-  '/api/auth',
-  authRoutes
-);
-
-// ==================== ADMIN ====================
-
-app.use(
-  '/api/admin',
-  adminRoutes
-);
-
-// ==================== USERS ====================
-
-app.use(
-  '/api/users',
-  userRoutes
-);
-
-// ==================== PRODUCTS ====================
-
-app.use(
-  '/api/products',
-  productRoutes
-);
-
-// ==================== ORDERS ====================
-
-app.use(
-  '/api/orders',
-  orderRoutes
-);
-
-// ==================== PAYMENTS ====================
-
-app.use(
-  '/api/payments',
-  paymentRoutes
-);
-
-// ==================== CART ====================
-
-app.use(
-  '/api/cart',
-  cartRoutes
-);
-
-// ==================== WISHLIST ====================
-
-app.use(
-  '/api/wishlist',
-  wishlistRoutes
-);
-
-// ==================== ADDRESSES ====================
-
-app.use(
-  '/api/addresses',
-  addressRoutes
-);
-
-// ==================== NOTIFICATIONS ====================
-
-app.use(
-  '/api/notifications',
-  notificationRoutes
-);
-
-// ==================== COUPONS ====================
-
-app.use(
-  '/api/coupons',
-  couponRoutes
-);
-
-// ==================== DASHBOARD ====================
-
-app.use(
-  '/api/dashboard',
-  dashboardRoutes
-);
-
-// ==================== CANDIDATES ====================
-
-app.use(
-  '/api/candidates',
-  candidateRoutes
-);
-
-// ==================== GALLERY ====================
-
-app.use(
-  '/api/gallery',
-  galleryRoutes
-);
-
-// ==================== GALLERY GET FALLBACK ====================
-// Kept because your existing code directly uses
-// galleryController.getGalleryImages.
-// =============================================================
-
+// ================================================================
+// ROOT API
+// ================================================================
 app.get(
-  '/api/gallery',
-  galleryController.getGalleryImages
-);
-
-// ==================== HEALTH CHECK ====================
-
-app.get(
-  '/api/health',
+  "/",
   (req, res) => {
+
     res.status(200).json({
-      status: 'success',
+      status: "success",
 
       message:
-        'Server is running',
+        "Vani Systems API is running",
 
-      timestamp:
-        new Date().toISOString(),
-
-      environment:
-        process.env.NODE_ENV || 'production',
-
-      cors: {
-        enabled: true,
-
-        frontend:
-          'https://rishabh.vanisystems.in',
-
-        backend:
-          'https://api-rishabh.vanisystems.in'
-      }
-    });
-  }
-);
-
-// ==================== CORS TEST ENDPOINT ====================
-// Use this endpoint to verify browser CORS.
-// =============================================================
-
-app.get(
-  '/api/cors-test',
-  (req, res) => {
-    res.status(200).json({
-      success: true,
-
-      message:
-        'CORS is working correctly',
-
-      origin:
-        req.headers.origin || null,
-
-      server:
-        'api-rishabh.vanisystems.in',
+      api:
+        "https://api-rishabh.vanisystems.in",
 
       frontend:
-        'rishabh.vanisystems.in',
+        "https://rishabh.vanisystems.in",
+
+      environment:
+        process.env.NODE_ENV ||
+        "production",
 
       timestamp:
         new Date().toISOString()
@@ -505,41 +559,405 @@ app.get(
   }
 );
 
-// ==================== 404 HANDLER ====================
+// ================================================================
+// HEALTH CHECK
+// ================================================================
+app.get(
+  "/api/health",
+  (req, res) => {
 
+    res.status(200).json({
+
+      status:
+        "success",
+
+      message:
+        "Server is running",
+
+      timestamp:
+        new Date().toISOString(),
+
+      environment:
+        process.env.NODE_ENV ||
+        "production"
+    });
+  }
+);
+
+// ================================================================
+// CORS TEST
+// ================================================================
+app.get(
+  "/api/cors-test",
+  (req, res) => {
+
+    res.status(200).json({
+
+      success:
+        true,
+
+      message:
+        "CORS is working correctly.",
+
+      requestOrigin:
+        req.headers.origin ||
+        null,
+
+      allowedOrigins:
+        uniqueAllowedOrigins,
+
+      timestamp:
+        new Date().toISOString()
+    });
+  }
+);
+
+// ================================================================
+// SOCKET.IO
+// ================================================================
+const io =
+  new Server(
+    httpServer,
+    {
+
+      cors: {
+
+        origin:
+          function (
+            origin,
+            callback
+          ) {
+
+            if (!origin) {
+              return callback(
+                null,
+                true
+              );
+            }
+
+            if (
+              uniqueAllowedOrigins.includes(
+                origin
+              )
+            ) {
+
+              return callback(
+                null,
+                true
+              );
+            }
+
+            console.error(
+              `Socket.IO CORS blocked: ${origin}`
+            );
+
+            return callback(
+              new Error(
+                "Socket.IO CORS origin not allowed"
+              )
+            );
+          },
+
+        methods: [
+          "GET",
+          "POST",
+          "PUT",
+          "DELETE",
+          "PATCH",
+          "OPTIONS"
+        ],
+
+        credentials:
+          true
+      },
+
+      transports: [
+        "websocket",
+        "polling"
+      ]
+    }
+  );
+
+// ================================================================
+// MAKE SOCKET.IO AVAILABLE TO ROUTES
+// ================================================================
+app.set(
+  "io",
+  io
+);
+
+// ================================================================
+// SOCKET.IO CONNECTION
+// ================================================================
+io.on(
+  "connection",
+  (socket) => {
+
+    console.log(
+      `User connected: ${socket.id}`
+    );
+
+    // ------------------------------------------------------------
+    // USER ROOM
+    // ------------------------------------------------------------
+    socket.on(
+      "join-user-room",
+      (userId) => {
+
+        if (!userId) {
+          return;
+        }
+
+        socket.join(
+          `user-${userId}`
+        );
+
+        console.log(
+          `User ${userId} joined their room`
+        );
+      }
+    );
+
+    // ------------------------------------------------------------
+    // ADMIN ROOM
+    // ------------------------------------------------------------
+    socket.on(
+      "join-admin-room",
+      () => {
+
+        socket.join(
+          "admin-room"
+        );
+
+        console.log(
+          "Admin joined admin room"
+        );
+      }
+    );
+
+    // ------------------------------------------------------------
+    // DISCONNECT
+    // ------------------------------------------------------------
+    socket.on(
+      "disconnect",
+      (reason) => {
+
+        console.log(
+          `User disconnected: ${socket.id} - ${reason}`
+        );
+      }
+    );
+  }
+);
+
+// ================================================================
+// API ROUTES
+// ================================================================
+
+// Authentication
+app.use(
+  "/api/auth",
+  authRoutes
+);
+
+// Admin
+app.use(
+  "/api/admin",
+  adminRoutes
+);
+
+// Users
+app.use(
+  "/api/users",
+  userRoutes
+);
+
+// Products
+app.use(
+  "/api/products",
+  productRoutes
+);
+
+// Orders
+app.use(
+  "/api/orders",
+  orderRoutes
+);
+
+// Payments
+app.use(
+  "/api/payments",
+  paymentRoutes
+);
+
+// Cart
+app.use(
+  "/api/cart",
+  cartRoutes
+);
+
+// Wishlist
+app.use(
+  "/api/wishlist",
+  wishlistRoutes
+);
+
+// Addresses
+app.use(
+  "/api/addresses",
+  addressRoutes
+);
+
+// Notifications
+app.use(
+  "/api/notifications",
+  notificationRoutes
+);
+
+// Coupons
+app.use(
+  "/api/coupons",
+  couponRoutes
+);
+
+// Dashboard
+app.use(
+  "/api/dashboard",
+  dashboardRoutes
+);
+
+// Candidates
+app.use(
+  "/api/candidates",
+  candidateRoutes
+);
+
+// Gallery
+app.use(
+  "/api/gallery",
+  galleryRoutes
+);
+
+// ================================================================
+// ROUTE LOG
+// ================================================================
+console.log(
+  "================================================"
+);
+
+console.log(
+  "API ROUTES MOUNTED"
+);
+
+console.log(
+  "/api/auth"
+);
+
+console.log(
+  "/api/admin"
+);
+
+console.log(
+  "/api/users"
+);
+
+console.log(
+  "/api/products"
+);
+
+console.log(
+  "/api/orders"
+);
+
+console.log(
+  "/api/payments"
+);
+
+console.log(
+  "/api/cart"
+);
+
+console.log(
+  "/api/wishlist"
+);
+
+console.log(
+  "/api/addresses"
+);
+
+console.log(
+  "/api/notifications"
+);
+
+console.log(
+  "/api/coupons"
+);
+
+console.log(
+  "/api/dashboard"
+);
+
+console.log(
+  "/api/candidates"
+);
+
+console.log(
+  "/api/gallery"
+);
+
+console.log(
+  "================================================"
+);
+
+// ================================================================
+// 404 HANDLER
+// ================================================================
 app.use(
   notFound
 );
 
-// ==================== GLOBAL ERROR HANDLER ====================
-
+// ================================================================
+// GLOBAL ERROR HANDLER
+// ================================================================
 app.use(
   errorHandler
 );
 
-// ==================== START SERVER ====================
-
+// ================================================================
+// PORT
+// ================================================================
 const PORT =
-  process.env.PORT || 5000;
+  Number(
+    process.env.PORT
+  ) || 5000;
 
+// ================================================================
+// START SERVER
+// ================================================================
 const startServer =
   async () => {
-    try {
-      console.log(
-        'Connecting to MongoDB Atlas...'
-      );
 
+    try {
+
+      // ----------------------------------------------------------
+      // CONNECT DATABASE
+      // ----------------------------------------------------------
       await connectDB();
 
       console.log(
-        'MongoDB Atlas connected successfully'
+        "MongoDB connected successfully."
       );
 
+      // ----------------------------------------------------------
+      // START HTTP SERVER
+      // ----------------------------------------------------------
       httpServer.listen(
         PORT,
+        "0.0.0.0",
         () => {
+
           console.log(
-            '=========================================='
+            "================================================"
           );
 
           console.log(
@@ -547,72 +965,66 @@ const startServer =
           );
 
           console.log(
-            `Environment: ${
+            `NODE_ENV: ${
               process.env.NODE_ENV ||
-              'production'
+              "production"
             }`
           );
 
           console.log(
-            '=========================================='
+            "API Base URL:"
           );
 
           console.log(
-            'Frontend:',
-            'https://rishabh.vanisystems.in'
+            "https://api-rishabh.vanisystems.in"
           );
 
           console.log(
-            'Backend:',
-            'https://api-rishabh.vanisystems.in'
+            "Frontend URL:"
           );
 
           console.log(
-            'Health:',
-            'https://api-rishabh.vanisystems.in/api/health'
+            "https://rishabh.vanisystems.in"
           );
 
           console.log(
-            'CORS Test:',
-            'https://api-rishabh.vanisystems.in/api/cors-test'
+            "Health URL:"
           );
 
           console.log(
-            'Auth routes mounted at /api/auth'
+            "https://api-rishabh.vanisystems.in/api/health"
           );
 
           console.log(
-            'Admin routes mounted at /api/admin'
+            "CORS Test URL:"
           );
 
           console.log(
-            'Products routes mounted at /api/products'
+            "https://api-rishabh.vanisystems.in/api/cors-test"
           );
 
           console.log(
-            'Candidates routes mounted at /api/candidates'
+            "Uploads:"
           );
 
           console.log(
-            'Gallery routes mounted at /api/gallery'
+            "/uploads"
           );
 
           console.log(
-            'Uploads served from /uploads'
+            "/api/uploads"
           );
 
           console.log(
-            'API uploads served from /api/uploads'
-          );
-
-          console.log(
-            '=========================================='
+            "================================================"
           );
         }
       );
+
     } catch (error) {
+
       console.error(
-        'SERVER STARTUP ERROR:',
+        "Failed to start server:",
         error
       );
 
@@ -620,19 +1032,16 @@ const startServer =
     }
   };
 
-// ==================== UNHANDLED PROMISE REJECTION ====================
-
+// ================================================================
+// UNHANDLED PROMISE REJECTION
+// ================================================================
 process.on(
-  'unhandledRejection',
+  "unhandledRejection",
   (err) => {
-    console.error(
-      `Unhandled Rejection: ${
-        err.message
-      }`
-    );
 
     console.error(
-      err.stack
+      "Unhandled Rejection:",
+      err.message
     );
 
     httpServer.close(
@@ -643,31 +1052,30 @@ process.on(
   }
 );
 
-// ==================== UNCAUGHT EXCEPTION ====================
-
+// ================================================================
+// UNCAUGHT EXCEPTION
+// ================================================================
 process.on(
-  'uncaughtException',
+  "uncaughtException",
   (err) => {
-    console.error(
-      `Uncaught Exception: ${
-        err.message
-      }`
-    );
 
     console.error(
-      err.stack
+      "Uncaught Exception:",
+      err.message
     );
 
     process.exit(1);
   }
 );
 
-// ==================== START APPLICATION ====================
-
+// ================================================================
+// START APPLICATION
+// ================================================================
 startServer();
 
-// ==================== EXPORT ====================
-
+// ================================================================
+// EXPORT
+// ================================================================
 module.exports = {
   app,
   io
