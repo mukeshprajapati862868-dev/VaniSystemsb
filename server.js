@@ -20,7 +20,7 @@ const fs = require('fs');
 // Import database connection
 const connectDB = require('./config/db');
 
-// Import routes
+// Import routes (FIXED PATHS WITH CAPITAL 'R')
 const authRoutes = require('./Routes/auth');
 const userRoutes = require('./Routes/users');
 const productRoutes = require('./Routes/products');
@@ -61,8 +61,6 @@ try {
   fs.mkdirSync(path.join(uploadsRoot, 'gallery'), {
     recursive: true
   });
-
-  console.log('Uploads folders initialized successfully.');
 } catch (e) {
   console.error(
     'Uploads folder initialization error:',
@@ -78,6 +76,7 @@ app.use(
 
 // ===============================================================
 
+
 // ==================== ALLOWED ORIGINS ====================
 
 const allowedOrigins = [
@@ -87,18 +86,31 @@ const allowedOrigins = [
   'https://vani-systems-ouit.vercel.app',
 
   'http://rishabh.vanisystems.in',
-  'https://rishabh.vanisystems.in'
+  'https://rishabh.vanisystems.in',
+
+  'http://api-rishabh.vanisystems.in',
+  'https://api-rishabh.vanisystems.in'
 ];
 
 // ===============================================================
 
+
 // ==================== CORS CONFIGURATION ====================
+
+// IMPORTANT:
+// CORS middleware must run BEFORE API routes.
+//
+// Production frontend:
+// https://rishabh.vanisystems.in
+//
+// Production backend:
+// https://api-rishabh.vanisystems.in
 
 const corsOptions = {
   origin: function (origin, callback) {
 
-    // Allow requests without Origin header
-    // Useful for Postman, server-to-server requests, health checks, etc.
+    // Allow server-to-server requests, health checks,
+    // curl/Postman and requests without Origin header.
     if (!origin) {
       return callback(null, true);
     }
@@ -108,12 +120,12 @@ const corsOptions = {
     }
 
     console.error(
-      `CORS BLOCKED ORIGIN: ${origin}`
+      `CORS blocked origin: ${origin}`
     );
 
     return callback(
       new Error(
-        'CORS Policy: This origin is not allowed by Vani Systems Security!'
+        `CORS Policy: Origin ${origin} is not allowed by Vani Systems Security!`
       )
     );
   },
@@ -139,20 +151,56 @@ const corsOptions = {
 
   exposedHeaders: [
     'Content-Length',
-    'Content-Type'
+    'Content-Type',
+    'Authorization'
   ],
 
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: 204,
+
+  preflightContinue: false
 };
 
-// IMPORTANT:
-// CORS middleware must be registered before API routes.
+// Apply CORS globally
 app.use(cors(corsOptions));
 
-// Explicitly handle browser preflight requests.
-app.options('*', cors(corsOptions));
+// Explicitly handle OPTIONS preflight requests
+app.options(
+  '*',
+  cors(corsOptions)
+);
 
 // ===============================================================
+
+
+// ==================== SOCKET.IO ====================
+
+const io = new Server(httpServer, {
+  cors: {
+    origin: allowedOrigins,
+
+    methods: [
+      'GET',
+      'POST',
+      'PUT',
+      'DELETE',
+      'PATCH',
+      'OPTIONS'
+    ],
+
+    credentials: true
+  },
+
+  transports: [
+    'websocket',
+    'polling'
+  ]
+});
+
+// Make io accessible to routes
+app.set('io', io);
+
+// ===============================================================
+
 
 // ==================== SECURITY MIDDLEWARE ====================
 
@@ -177,8 +225,7 @@ app.use(
           "'unsafe-inline'",
           "'unsafe-eval'",
           'https://cdn.jsdelivr.net',
-          'https://jsdelivr.net',
-          'https://checkout.razorpay.com'
+          'https://jsdelivr.net'
         ],
 
         imgSrc: [
@@ -187,26 +234,36 @@ app.use(
           'blob:',
           'https:',
           'http:',
-          'https://unsplash.com',
-          'https://images.unsplash.com'
+          'https://unsplash.com'
         ],
 
         connectSrc: [
           "'self'",
 
+          // Local frontend/backend
+          'http://localhost:3000',
+          'http://localhost:5173',
           'http://localhost:5000',
 
-          'https://localhost:5000',
-
-          'https://razorpay.com',
-
-          'https://api.razorpay.com',
-
-          'https://api-rishabh.vanisystems.in',
-
+          // Production frontend
           'https://rishabh.vanisystems.in',
+          'http://rishabh.vanisystems.in',
 
-          'https://vani-systems-ouit.vercel.app'
+          // Production backend
+          'https://api-rishabh.vanisystems.in',
+          'http://api-rishabh.vanisystems.in',
+
+          // Existing Vercel frontend
+          'https://vani-systems-ouit.vercel.app',
+
+          // Razorpay
+          'https://razorpay.com',
+          'https://api.razorpay.com',
+          'https://checkout.razorpay.com',
+
+          // Socket connection
+          'wss://api-rishabh.vanisystems.in',
+          'ws://api-rishabh.vanisystems.in'
         ],
 
         fontSrc: [
@@ -231,6 +288,7 @@ app.use(
 
         frameSrc: [
           "'self'",
+          'https://razorpay.com',
           'https://api.razorpay.com',
           'https://checkout.razorpay.com'
         ],
@@ -249,11 +307,16 @@ app.use(
       }
     },
 
-    crossOriginEmbedderPolicy: false
+    crossOriginEmbedderPolicy: false,
+
+    crossOriginResourcePolicy: {
+      policy: 'cross-origin'
+    }
   })
 );
 
 // ===============================================================
+
 
 // ==================== RATE LIMITING ====================
 
@@ -263,7 +326,8 @@ const limiter = rateLimit({
   max: 5000,
 
   message: {
-    error: 'Too many requests from this IP, please try again later.'
+    error:
+      'Too many requests from this IP, please try again later.'
   },
 
   standardHeaders: true,
@@ -281,6 +345,7 @@ app.use(
 );
 
 // ===============================================================
+
 
 // ==================== BODY PARSING ====================
 
@@ -301,6 +366,7 @@ app.use(cookieParser());
 
 // ===============================================================
 
+
 // ==================== COMPRESSION ====================
 
 app.use(
@@ -308,6 +374,7 @@ app.use(
 );
 
 // ===============================================================
+
 
 // ==================== LOGGING ====================
 
@@ -323,91 +390,6 @@ if (process.env.NODE_ENV === 'development') {
 
 // ===============================================================
 
-// ==================== CORS DEBUG MIDDLEWARE ====================
-
-app.use((req, res, next) => {
-
-  const origin = req.headers.origin;
-
-  if (
-    origin &&
-    allowedOrigins.includes(origin)
-  ) {
-    res.header(
-      'Access-Control-Allow-Origin',
-      origin
-    );
-
-    res.header(
-      'Access-Control-Allow-Credentials',
-      'true'
-    );
-
-    res.header(
-      'Access-Control-Allow-Methods',
-      'GET,POST,PUT,DELETE,PATCH,OPTIONS'
-    );
-
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, X-Requested-With, Accept, Origin'
-    );
-  }
-
-  if (req.method === 'OPTIONS') {
-
-    if (
-      !origin ||
-      allowedOrigins.includes(origin)
-    ) {
-      return res.sendStatus(204);
-    }
-
-    return res.status(403).json({
-      success: false,
-      message: 'CORS preflight request blocked.'
-    });
-  }
-
-  next();
-});
-
-// ===============================================================
-
-// ==================== SOCKET.IO SETUP ====================
-
-const io = new Server(
-  httpServer,
-  {
-    cors: {
-      origin: allowedOrigins,
-
-      methods: [
-        'GET',
-        'POST',
-        'PUT',
-        'DELETE',
-        'PATCH',
-        'OPTIONS'
-      ],
-
-      credentials: true
-    },
-
-    transports: [
-      'websocket',
-      'polling'
-    ]
-  }
-);
-
-// Make io accessible to routes
-app.set(
-  'io',
-  io
-);
-
-// ===============================================================
 
 // ==================== SOCKET.IO CONNECTION ====================
 
@@ -464,6 +446,7 @@ io.on(
 );
 
 // ===============================================================
+
 
 // ==================== API ROUTES ====================
 
@@ -529,6 +512,7 @@ app.use(
 
 // ===============================================================
 
+
 // ==================== CANDIDATE API ====================
 
 app.use(
@@ -537,6 +521,7 @@ app.use(
 );
 
 // ===============================================================
+
 
 // ==================== GALLERY API ====================
 
@@ -547,6 +532,7 @@ app.use(
 
 // ===============================================================
 
+
 // ==================== HEALTH CHECK ====================
 
 app.get(
@@ -556,12 +542,20 @@ app.get(
     res.status(200).json({
       status: 'success',
       message: 'Server is running',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      environment:
+        process.env.NODE_ENV || 'production',
+      origin:
+        req.headers.origin || null
     });
   }
 );
 
-// Simple root API response
+// ===============================================================
+
+
+// ==================== ROOT CHECK ====================
+
 app.get(
   '/',
   (req, res) => {
@@ -569,34 +563,49 @@ app.get(
     res.status(200).json({
       status: 'success',
       message: 'Vani Systems API is running',
-      api: 'https://api-rishabh.vanisystems.in',
-      health: '/api/health'
+      api: '/api',
+      health: '/api/health',
+      timestamp: new Date().toISOString()
     });
   }
 );
 
 // ===============================================================
 
-// ==================== 404 + ERROR HANDLERS ====================
 
-const errorHandler = require('./middleware/errorHandler');
-const notFound = require('./middleware/notFound');
+// ==================== IMPORT ERROR MIDDLEWARE ====================
 
-// 404 handler
+const errorHandler =
+  require('./middleware/errorHandler');
+
+const notFound =
+  require('./middleware/notFound');
+
+// ===============================================================
+
+
+// ==================== 404 HANDLER ====================
+
 app.use(
   notFound
 );
 
-// Global error handler
+// ===============================================================
+
+
+// ==================== GLOBAL ERROR HANDLER ====================
+
 app.use(
   errorHandler
 );
 
 // ===============================================================
 
+
 // ==================== START SERVER ====================
 
-const PORT = process.env.PORT || 5000;
+const PORT =
+  process.env.PORT || 5000;
 
 const startServer = async () => {
 
@@ -610,7 +619,7 @@ const startServer = async () => {
       () => {
 
         console.log(
-          '=============================================='
+          '=================================================='
         );
 
         console.log(
@@ -618,15 +627,29 @@ const startServer = async () => {
         );
 
         console.log(
-          'Server host: 0.0.0.0'
+          `Environment: ${
+            process.env.NODE_ENV || 'production'
+          }`
         );
 
         console.log(
-          `Environment: ${process.env.NODE_ENV || 'production'}`
+          '=================================================='
         );
 
         console.log(
-          '=============================================='
+          'Allowed Frontend Origins:'
+        );
+
+        allowedOrigins.forEach(
+          (origin) => {
+            console.log(
+              ` - ${origin}`
+            );
+          }
+        );
+
+        console.log(
+          '=================================================='
         );
 
         console.log(
@@ -638,19 +661,19 @@ const startServer = async () => {
         );
 
         console.log(
-          'Users routes mounted at /api/users'
+          'User routes mounted at /api/users'
         );
 
         console.log(
-          'Products routes mounted at /api/products'
+          'Product routes mounted at /api/products'
         );
 
         console.log(
-          'Orders routes mounted at /api/orders'
+          'Order routes mounted at /api/orders'
         );
 
         console.log(
-          'Payments routes mounted at /api/payments'
+          'Payment routes mounted at /api/payments'
         );
 
         console.log(
@@ -662,15 +685,15 @@ const startServer = async () => {
         );
 
         console.log(
-          'Addresses routes mounted at /api/addresses'
+          'Address routes mounted at /api/addresses'
         );
 
         console.log(
-          'Notifications routes mounted at /api/notifications'
+          'Notification routes mounted at /api/notifications'
         );
 
         console.log(
-          'Coupons routes mounted at /api/coupons'
+          'Coupon routes mounted at /api/coupons'
         );
 
         console.log(
@@ -690,15 +713,11 @@ const startServer = async () => {
         );
 
         console.log(
-          'Allowed frontend origin: https://rishabh.vanisystems.in'
+          'Health check available at /api/health'
         );
 
         console.log(
-          'API URL: https://api-rishabh.vanisystems.in'
-        );
-
-        console.log(
-          '=============================================='
+          '=================================================='
         );
       }
     );
@@ -716,7 +735,8 @@ const startServer = async () => {
 
 // ===============================================================
 
-// ==================== UNHANDLED REJECTION ====================
+
+// ==================== HANDLE UNHANDLED REJECTIONS ====================
 
 process.on(
   'unhandledRejection',
@@ -740,7 +760,8 @@ process.on(
 
 // ===============================================================
 
-// ==================== UNCAUGHT EXCEPTION ====================
+
+// ==================== HANDLE UNCAUGHT EXCEPTIONS ====================
 
 process.on(
   'uncaughtException',
@@ -760,15 +781,19 @@ process.on(
 
 // ===============================================================
 
+
 // ==================== START APPLICATION ====================
 
 startServer();
 
 // ===============================================================
 
-// ==================== EXPORTS ====================
+
+// ==================== EXPORT ====================
 
 module.exports = {
   app,
   io
 };
+
+// ===============================================================
