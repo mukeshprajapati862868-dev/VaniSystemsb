@@ -94,137 +94,18 @@ app.use(
   })
 );
 
-// ==================== ALLOWED CORS ORIGINS ====================
-// Production frontend
-// Local development
-// Existing Vercel frontend
-// ===============================================================
-
-const allowedOrigins = [
-  'https://rishabh.vanisystems.in',
-  'http://rishabh.vanisystems.in',
-  'https://vani-systems-ouit.vercel.app',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000'
-];
-
-// Optional additional origin from .env
-if (
-  process.env.CORS_ORIGIN &&
-  !allowedOrigins.includes(process.env.CORS_ORIGIN)
-) {
-  allowedOrigins.push(process.env.CORS_ORIGIN);
-}
-
-// Remove accidental trailing slashes from origins
-const normalizedAllowedOrigins = allowedOrigins
-  .filter(Boolean)
-  .map((origin) => origin.replace(/\/$/, ''));
-
-console.log(
-  'Allowed CORS Origins:',
-  normalizedAllowedOrigins
-);
-
-// ==================== CORS ORIGIN VALIDATION ====================
+// ==================== CORS (ALLOW ALL ORIGINS) ====================
 
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow server-to-server / Postman / curl requests
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    const normalizedOrigin = origin.replace(/\/$/, '');
-
-    if (
-      normalizedAllowedOrigins.includes(normalizedOrigin)
-    ) {
-      return callback(null, true);
-    }
-
-    console.error(
-      `CORS blocked origin: ${origin}`
-    );
-
-    return callback(
-      new Error(
-        `CORS Policy: Origin ${origin} is not allowed by Vani Systems Security!`
-      )
-    );
-  },
-
-  credentials: true,
-
-  methods: [
-    'GET',
-    'POST',
-    'PUT',
-    'DELETE',
-    'PATCH',
-    'OPTIONS'
-  ],
-
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'Accept',
-    'Origin'
-  ],
-
-  exposedHeaders: [
-    'Content-Length',
-    'Content-Type',
-    'Authorization'
-  ],
-
-  optionsSuccessStatus: 204,
-
-  preflightContinue: false
+  origin: true,
+  credentials: true
 };
 
 // ==================== SOCKET.IO ====================
 
 const io = new Server(httpServer, {
   cors: {
-    origin: function (origin, callback) {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      const normalizedOrigin = origin.replace(/\/$/, '');
-
-      if (
-        normalizedAllowedOrigins.includes(
-          normalizedOrigin
-        )
-      ) {
-        return callback(null, true);
-      }
-
-      console.error(
-        `Socket.IO CORS blocked origin: ${origin}`
-      );
-
-      return callback(
-        new Error(
-          'Socket.IO CORS origin not allowed'
-        )
-      );
-    },
-
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'DELETE',
-      'PATCH',
-      'OPTIONS'
-    ],
-
+    origin: true,
     credentials: true
   },
 
@@ -331,73 +212,8 @@ app.use(
 );
 
 // ==================== CORS MIDDLEWARE ====================
-// IMPORTANT:
-// This MUST be before API routes.
-// ===========================================================
 
 app.use(cors(corsOptions));
-
-// ==================== EXPLICIT PREFLIGHT HANDLER ====================
-// This fixes:
-// "Response to preflight request doesn't pass access control check"
-// ===============================================================
-
-// app.options(
-//   '*',
-//   cors(corsOptions)
-// );
-
-// ==================== EXTRA PREFLIGHT SAFETY ====================
-// Ensures OPTIONS receives the required headers even when
-// a reverse proxy/server configuration interferes.
-// ===============================================================
-
-app.use((req, res, next) => {
-  const requestOrigin = req.headers.origin;
-
-  if (
-    requestOrigin &&
-    normalizedAllowedOrigins.includes(
-      requestOrigin.replace(/\/$/, '')
-    )
-  ) {
-    res.header(
-      'Access-Control-Allow-Origin',
-      requestOrigin
-    );
-
-    res.header(
-      'Access-Control-Allow-Credentials',
-      'true'
-    );
-
-    res.header(
-      'Access-Control-Allow-Methods',
-      'GET,POST,PUT,DELETE,PATCH,OPTIONS'
-    );
-
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, X-Requested-With, Accept, Origin'
-    );
-
-    res.header(
-      'Access-Control-Expose-Headers',
-      'Content-Length, Content-Type, Authorization'
-    );
-
-    res.header(
-      'Vary',
-      'Origin'
-    );
-  }
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
 
 // ==================== RATE LIMITING ====================
 
