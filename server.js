@@ -43,27 +43,46 @@ const app = express();
 const httpServer = createServer(app);
 
 // FIX: Binds a fallback storage instance context object to Express.
-app.set('db', { users: [], wishlists: [], products: [] });
+app.set('db', {
+  users: [],
+  wishlists: [],
+  products: []
+});
 
 // ==================== UPLOADS CONFIGURATION ====================
+
 const uploadsRoot = path.join(__dirname, 'uploads');
 
 try {
-  fs.mkdirSync(path.join(uploadsRoot, 'candidates'), {
-    recursive: true
-  });
+  fs.mkdirSync(
+    path.join(uploadsRoot, 'candidates'),
+    {
+      recursive: true
+    }
+  );
 
-  fs.mkdirSync(path.join(uploadsRoot, 'gallery'), {
-    recursive: true
-  });
+  fs.mkdirSync(
+    path.join(uploadsRoot, 'gallery'),
+    {
+      recursive: true
+    }
+  );
+
+  console.log(
+    'Uploads directories initialized successfully.'
+  );
 } catch (e) {
-  console.error('Uploads folder initialization error:', e.message);
+  console.error(
+    'Uploads folder initialization error:',
+    e.message
+  );
 }
 
 // Serve uploaded files publicly
-app.use('/uploads', express.static(uploadsRoot));
-// ===============================================================
-
+app.use(
+  '/uploads',
+  express.static(uploadsRoot)
+);
 
 // ================================================================
 // ==================== CORS CONFIGURATION ========================
@@ -71,7 +90,7 @@ app.use('/uploads', express.static(uploadsRoot));
 //
 // ALL ORIGINS ARE ALLOWED
 //
-// Plesk Frontend:
+// Plesk:
 // https://rishabh.vanisystems.in
 //
 // Vercel:
@@ -89,9 +108,6 @@ app.use('/uploads', express.static(uploadsRoot));
 // http://127.0.0.1:3000
 // http://127.0.0.1:5173
 // http://127.0.0.1:5174
-//
-// origin: true dynamically allows the requesting origin.
-// credentials: true allows cookies/authentication.
 //
 // ================================================================
 
@@ -134,49 +150,45 @@ const corsOptions = {
   preflightContinue: false
 };
 
-// ================================================================
-// GLOBAL CORS
-// ================================================================
-
-app.use(cors(corsOptions));
-
-// ================================================================
-// OPTIONS / PREFLIGHT CORS
-// ================================================================
-
-app.options('*', cors(corsOptions));
+// Global CORS
+app.use(
+  cors(corsOptions)
+);
 
 // ================================================================
 // SOCKET.IO SETUP
 // ================================================================
 
-const io = new Server(httpServer, {
-  cors: {
-    origin: true,
+const io = new Server(
+  httpServer,
+  {
+    cors: {
+      origin: true,
 
-    credentials: true,
+      credentials: true,
 
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'DELETE',
-      'PATCH',
-      'OPTIONS',
-      'HEAD'
-    ],
+      methods: [
+        'GET',
+        'POST',
+        'PUT',
+        'DELETE',
+        'PATCH',
+        'OPTIONS',
+        'HEAD'
+      ],
 
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'Cache-Control',
-      'Pragma'
-    ]
+      allowedHeaders: [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'Cache-Control',
+        'Pragma'
+      ]
+    }
   }
-});
+);
 
 // Make io accessible to routes
 app.set('io', io);
@@ -189,7 +201,9 @@ app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
-        defaultSrc: ["'self'"],
+        defaultSrc: [
+          "'self'"
+        ],
 
         styleSrc: [
           "'self'",
@@ -219,57 +233,34 @@ app.use(
         connectSrc: [
           "'self'",
 
-          // ======================================================
-          // PLESK FRONTEND
-          // ======================================================
-
+          // Plesk frontend
           'https://rishabh.vanisystems.in',
 
-          // ======================================================
-          // VERCEL FRONTEND
-          // ======================================================
-
+          // Vercel frontend
           'https://vani-systems-ouit.vercel.app',
-
           'https://*.vercel.app',
 
-          // ======================================================
-          // RENDER
-          // ======================================================
-
+          // Render
           'https://vanisystemsb-1.onrender.com',
-
           'https://*.onrender.com',
 
-          // ======================================================
-          // LOCALHOST
-          // ======================================================
-
+          // Localhost
           'http://localhost:3000',
           'http://localhost:5173',
           'http://localhost:5174',
           'http://localhost:5000',
 
-          // ======================================================
           // 127.0.0.1
-          // ======================================================
-
           'http://127.0.0.1:3000',
           'http://127.0.0.1:5173',
           'http://127.0.0.1:5174',
           'http://127.0.0.1:5000',
 
-          // ======================================================
-          // RAZORPAY
-          // ======================================================
-
+          // Razorpay
           'https://razorpay.com',
           'https://api.razorpay.com',
 
-          // ======================================================
-          // SOCKET.IO / WEBSOCKET
-          // ======================================================
-
+          // WebSocket
           'ws:',
           'wss:'
         ],
@@ -323,54 +314,6 @@ app.use(
 );
 
 // ================================================================
-// CORS AGAIN AFTER HELMET
-// ================================================================
-//
-// Kept to ensure CORS headers remain available after security
-// middleware processing.
-//
-// ================================================================
-
-app.use(
-  cors({
-    origin: true,
-
-    credentials: true,
-
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'PATCH',
-      'DELETE',
-      'OPTIONS',
-      'HEAD'
-    ],
-
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'Cache-Control',
-      'Pragma',
-      'Cookie',
-      'X-Access-Token',
-      'X-Auth-Token'
-    ],
-
-    exposedHeaders: [
-      'Content-Length',
-      'Content-Type',
-      'Authorization'
-    ],
-
-    optionsSuccessStatus: 204
-  })
-);
-
-// ================================================================
 // RATE LIMITING
 // ================================================================
 
@@ -396,10 +339,13 @@ const limiter = rateLimit({
   }
 });
 
-app.use('/api/', limiter);
+app.use(
+  '/api/',
+  limiter
+);
 
 // ================================================================
-// BODY PARSING
+// BODY PARSING MIDDLEWARE
 // ================================================================
 
 app.use(
@@ -419,96 +365,104 @@ app.use(
 // COOKIE PARSER
 // ================================================================
 
-app.use(cookieParser());
+app.use(
+  cookieParser()
+);
 
 // ================================================================
 // COMPRESSION
 // ================================================================
 
-app.use(compression());
+app.use(
+  compression()
+);
 
 // ================================================================
 // LOGGING
 // ================================================================
 
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
+if (
+  process.env.NODE_ENV === 'development'
+) {
+  app.use(
+    morgan('dev')
+  );
 } else {
-  app.use(morgan('combined'));
+  app.use(
+    morgan('combined')
+  );
 }
 
 // ================================================================
 // SOCKET.IO CONNECTION HANDLING
 // ================================================================
 
-io.on('connection', (socket) => {
+io.on(
+  'connection',
+  (socket) => {
 
-  console.log(
-    `User connected: ${socket.id}`
-  );
+    console.log(
+      `User connected: ${socket.id}`
+    );
 
-  // ============================================================
-  // USER ROOM
-  // ============================================================
+    // ============================================================
+    // USER ROOM
+    // ============================================================
 
-  socket.on(
-    'join-user-room',
-    (userId) => {
+    socket.on(
+      'join-user-room',
+      (userId) => {
 
-      if (!userId) {
-        return;
+        if (!userId) {
+          return;
+        }
+
+        socket.join(
+          `user-${userId}`
+        );
+
+        console.log(
+          `User ${userId} joined their room`
+        );
       }
+    );
 
-      socket.join(
-        `user-${userId}`
-      );
+    // ============================================================
+    // ADMIN ROOM
+    // ============================================================
 
-      console.log(
-        `User ${userId} joined their room`
-      );
-    }
-  );
+    socket.on(
+      'join-admin-room',
+      () => {
 
-  // ============================================================
-  // ADMIN ROOM
-  // ============================================================
+        socket.join(
+          'admin-room'
+        );
 
-  socket.on(
-    'join-admin-room',
-    () => {
+        console.log(
+          'Admin joined admin room'
+        );
+      }
+    );
 
-      socket.join(
-        'admin-room'
-      );
+    // ============================================================
+    // DISCONNECT
+    // ============================================================
 
-      console.log(
-        'Admin joined admin room'
-      );
-    }
-  );
+    socket.on(
+      'disconnect',
+      () => {
 
-  // ============================================================
-  // DISCONNECT
-  // ============================================================
-
-  socket.on(
-    'disconnect',
-    () => {
-
-      console.log(
-        `User disconnected: ${socket.id}`
-      );
-    }
-  );
-});
+        console.log(
+          `User disconnected: ${socket.id}`
+        );
+      }
+    );
+  }
+);
 
 // ================================================================
 // ROOT ROUTE
-// ================================================================
-//
-// This fixes Render/Plesk:
-// GET / 404
-//
 // ================================================================
 
 app.get(
@@ -559,7 +513,7 @@ app.get(
 );
 
 // ================================================================
-// API ROUTES
+// ==================== API ROUTES ================================
 // ================================================================
 
 app.use(
@@ -669,7 +623,7 @@ app.get(
 );
 
 // ================================================================
-// IMPORT ERROR MIDDLEWARE
+// ERROR MIDDLEWARE
 // ================================================================
 
 const errorHandler =
@@ -871,7 +825,7 @@ process.on(
 );
 
 // ================================================================
-// START SERVER
+// START
 // ================================================================
 
 startServer();
@@ -884,7 +838,3 @@ module.exports = {
   app,
   io
 };
-
-
-
-
