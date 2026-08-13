@@ -841,17 +841,13 @@
 
 
 
-
-
-
-
-
 // ==================== DNS FIX FOR MONGODB ATLAS (MUST BE ON TOP) ====================
 const dns = require('dns');
 dns.setServers(['1.1.1.1', '8.8.8.8']);
 // ===================================================================================
 
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -895,6 +891,7 @@ app.set('db', {
 
 // ==================== UPLOADS CONFIGURATION ====================
 const uploadsRoot = path.join(__dirname, 'uploads');
+
 try {
   fs.mkdirSync(path.join(uploadsRoot, 'candidates'), { recursive: true });
   fs.mkdirSync(path.join(uploadsRoot, 'gallery'), { recursive: true });
@@ -907,10 +904,10 @@ try {
 app.use('/uploads', express.static(uploadsRoot));
 
 // ================================================================
-// ==================== CORS CONFIGURATION (FIXED) ================
+// ==================== CORS CONFIGURATION ========================
 // ================================================================
 const corsOptions = {
-  origin: true, // Reflects the request origin (works with credentials)
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
   allowedHeaders: [
@@ -930,11 +927,7 @@ const corsOptions = {
   preflightContinue: false
 };
 
-// Apply CORS as early as possible
 app.use(cors(corsOptions));
-
-// Explicitly handle preflight for all routes
-app.options('*', cors(corsOptions));
 
 // ================================================================
 // SOCKET.IO SETUP
@@ -943,7 +936,16 @@ const io = new Server(httpServer, {
   cors: {
     origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'Cache-Control',
+      'Pragma'
+    ]
   }
 });
 
@@ -1030,7 +1032,9 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/health' || req.path === '/api/health'
+  skip: (req) => {
+    return req.path === '/health' || req.path === '/api/health';
+  }
 });
 
 app.use('/api/', limiter);
@@ -1042,11 +1046,18 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ================================================================
-// COOKIE PARSER + COMPRESSION + LOGGING
+// COOKIE PARSER
 // ================================================================
 app.use(cookieParser());
+
+// ================================================================
+// COMPRESSION
+// ================================================================
 app.use(compression());
 
+// ================================================================
+// LOGGING
+// ================================================================
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
@@ -1076,7 +1087,7 @@ io.on('connection', (socket) => {
 });
 
 // ================================================================
-// ROOT & HEALTH ROUTES
+// ROOT ROUTE
 // ================================================================
 app.get('/', (req, res) => {
   res.status(200).json({
@@ -1088,6 +1099,9 @@ app.get('/', (req, res) => {
   });
 });
 
+// ================================================================
+// BASIC HEALTH ROUTE
+// ================================================================
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -1115,6 +1129,9 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/gallery', galleryRoutes);
 
+// ================================================================
+// HEALTH CHECK ENDPOINT
+// ================================================================
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'success',
@@ -1149,8 +1166,24 @@ const startServer = async () => {
       console.log('🚀 VANI SYSTEMS BACKEND SERVER STARTED');
       console.log('====================================================');
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🌐 Frontend: https://rishabh.vanisystems.in`);
-      console.log(`🌐 CORS: ENABLED (origin: true + credentials)`);
+      console.log(`🌐 Root route: /`);
+      console.log(`❤️ Health route: /api/health`);
+      console.log(`🔐 Auth routes mounted at /api/auth`);
+      console.log(`👤 User routes mounted at /api/users`);
+      console.log(`📦 Product routes mounted at /api/products`);
+      console.log(`🛒 Order routes mounted at /api/orders`);
+      console.log(`💳 Payment routes mounted at /api/payments`);
+      console.log(`🛍️ Cart routes mounted at /api/cart`);
+      console.log(`❤️ Wishlist routes mounted at /api/wishlist`);
+      console.log(`📍 Address routes mounted at /api/addresses`);
+      console.log(`🔔 Notification routes mounted at /api/notifications`);
+      console.log(`🎟️ Coupon routes mounted at /api/coupons`);
+      console.log(`📊 Dashboard routes mounted at /api/dashboard`);
+      console.log(`👨‍🎓 Candidate routes mounted at /api/candidates`);
+      console.log(`🖼️ Gallery routes mounted at /api/gallery`);
+      console.log(`📁 Uploads served from /uploads`);
+      console.log(`🌐 Plesk Frontend: https://rishabh.vanisystems.in`);
+      console.log(`🌐 CORS: ALL ORIGINS ENABLED`);
       console.log(`🔌 Socket.IO: ENABLED`);
       console.log('====================================================');
       console.log('');
@@ -1161,16 +1194,31 @@ const startServer = async () => {
   }
 };
 
+// ================================================================
+// HANDLE UNHANDLED PROMISE REJECTIONS
+// ================================================================
 process.on('unhandledRejection', (err) => {
   console.error(`Unhandled Rejection: ${err.message}`);
   httpServer.close(() => process.exit(1));
 });
 
+// ================================================================
+// HANDLE UNCAUGHT EXCEPTIONS
+// ================================================================
 process.on('uncaughtException', (err) => {
   console.error(`Uncaught Exception: ${err.message}`);
   process.exit(1);
 });
 
+// ================================================================
+// START
+// ================================================================
 startServer();
 
-module.exports = { app, io };
+// ================================================================
+// EXPORT
+// ================================================================
+module.exports = {
+  app,
+  io
+};
