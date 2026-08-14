@@ -2,6 +2,7 @@ const Gallery = require('../models/Gallery');
 const fs = require('fs');
 const path = require('path');
 
+// ==================== UPLOAD ====================
 exports.uploadFromDataUrl = async (req, res) => {
   try {
     const { name, dataUrl } = req.body;
@@ -13,7 +14,6 @@ exports.uploadFromDataUrl = async (req, res) => {
       });
     }
 
-    // Base64 validation
     const matches = dataUrl.match(/^data:(image\/(png|jpeg|jpg|webp));base64,(.+)$/i);
     if (!matches) {
       return res.status(400).json({
@@ -22,10 +22,9 @@ exports.uploadFromDataUrl = async (req, res) => {
       });
     }
 
-    const ext = matches[2]; // png / jpeg / jpg / webp
+    const ext = matches[2] === 'jpeg' ? 'jpg' : matches[2];
     const base64Data = matches[3];
 
-    // Double extension fix
     const cleanName = name
       .replace(/\.(png|jpeg|jpg|webp)$/i, '')
       .replace(/\s+/g, '-')
@@ -34,7 +33,6 @@ exports.uploadFromDataUrl = async (req, res) => {
     const filename = `${Date.now()}-${cleanName}.${ext}`;
     const uploadDir = path.join(__dirname, '..', 'uploads', 'gallery');
 
-    // Folder create if not exists
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -42,7 +40,6 @@ exports.uploadFromDataUrl = async (req, res) => {
     const filePath = path.join(uploadDir, filename);
     fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
 
-    // Save in database
     const gallery = await Gallery.create({
       name: cleanName,
       filename: filename,
@@ -53,7 +50,6 @@ exports.uploadFromDataUrl = async (req, res) => {
       success: true,
       data: gallery
     });
-
   } catch (error) {
     console.error('Gallery upload error:', error);
     return res.status(500).json({
@@ -64,6 +60,7 @@ exports.uploadFromDataUrl = async (req, res) => {
   }
 };
 
+// ==================== GET ALL ====================
 exports.getGalleryImages = async (req, res) => {
   try {
     const galleryImages = await Gallery.find().sort({ createdAt: -1 });
@@ -81,14 +78,51 @@ exports.getGalleryImages = async (req, res) => {
   }
 };
 
+// ==================== UPDATE ====================
+exports.updateGalleryImage = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const image = await Gallery.findById(req.params.id);
+
+    if (!image) {
+      return res.status(404).json({
+        success: false,
+        error: 'Image not found'
+      });
+    }
+
+    if (name) {
+      image.name = name;
+      await image.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: image
+    });
+  } catch (error) {
+    console.error('Update gallery image error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Server error',
+      message: error.message
+    });
+  }
+};
+
+// ==================== DELETE ====================
 exports.deleteGalleryImage = async (req, res) => {
   try {
     const image = await Gallery.findById(req.params.id);
+
     if (!image) {
-      return res.status(404).json({ success: false, error: 'Image not found' });
+      return res.status(404).json({
+        success: false,
+        error: 'Image not found'
+      });
     }
 
-    // Delete physical file
+    // Physical file delete
     const filePath = path.join(__dirname, '..', image.path.replace(/^\//, ''));
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
