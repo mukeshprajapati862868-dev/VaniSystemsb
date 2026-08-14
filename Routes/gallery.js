@@ -4,19 +4,29 @@ const galleryController = require('../controllers/galleryController');
 
 const router = express.Router();
 
-router.post('/upload', [
-  body('name').notEmpty().withMessage('Name is required'),
-  body('dataUrl').notEmpty().withMessage('dataUrl is required')
-], (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
+// Upload image
+router.post(
+  '/upload',
+  [
+    body('name').notEmpty().withMessage('Name is required'),
+    body('dataUrl').notEmpty().withMessage('dataUrl is required')
+  ],
+  (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
+      });
+    }
+    galleryController.uploadFromDataUrl(req, res);
   }
-  galleryController.uploadFromDataUrl(req, res);
-});
+);
 
-router.get('/', (req, res) => {
-  galleryController.getGalleryImages(req, res);
-});
+// Get all images
+router.get('/', galleryController.getGalleryImages);
+
+// Delete image
+router.delete('/:id', galleryController.deleteGalleryImage);
 
 module.exports = router;
