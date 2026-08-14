@@ -7,6 +7,9 @@ exports.uploadFromDataUrl = async (req, res) => {
   try {
     const { name, dataUrl } = req.body;
 
+    console.log('=== Gallery Upload Started ===');
+    console.log('Received name:', name);
+
     if (!name || !dataUrl) {
       return res.status(400).json({
         success: false,
@@ -14,44 +17,66 @@ exports.uploadFromDataUrl = async (req, res) => {
       });
     }
 
-    const matches = dataUrl.match(/^data:(image\/(png|jpeg|jpg|webp));base64,(.+)$/i);
+    // Base64 validation
+    const matches = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
+    
     if (!matches) {
+      console.log('Invalid dataUrl format');
       return res.status(400).json({
         success: false,
         error: 'Invalid image data. Only png, jpeg, jpg, webp allowed'
       });
     }
 
-    const ext = matches[2] === 'jpeg' ? 'jpg' : matches[2];
-    const base64Data = matches[3];
+    let ext = matches[1].toLowerCase();
+    if (ext === 'jpeg') ext = 'jpg';
 
-    const cleanName = name
-      .replace(/\.(png|jpeg|jpg|webp)$/i, '')
-      .replace(/\s+/g, '-')
+    const base64Data = matches[2];
+
+    // ========== STRONG FILENAME CLEANING ==========
+    let cleanName = name
+      .replace(/\.(png|jpeg|jpg|webp)$/gi, '')   // remove extension
+      .replace(/[^a-zA-Z0-9-_]/g, '-')          // only safe characters
+      .replace(/-+/g, '-')                       // multiple - to single
+      .replace(/^-|-$/g, '')                     // remove starting/ending -
       .toLowerCase();
 
+    if (!cleanName) cleanName = 'image';
+
     const filename = `${Date.now()}-${cleanName}.${ext}`;
+    console.log('Final filename:', filename);
+
+    // ========== UPLOAD FOLDER ==========
     const uploadDir = path.join(__dirname, '..', 'uploads', 'gallery');
 
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
+      console.log('Created gallery folder');
     }
 
     const filePath = path.join(uploadDir, filename);
-    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
 
+    // Write file
+    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+    console.log('File written successfully:', filePath);
+
+    // ========== SAVE IN DATABASE ==========
     const gallery = await Gallery.create({
       name: cleanName,
       filename: filename,
       path: `/uploads/gallery/${filename}`
     });
 
+    console.log('Saved in DB:', gallery._id);
+
     return res.status(201).json({
       success: true,
       data: gallery
     });
+
   } catch (error) {
-    console.error('Gallery upload error:', error);
+    console.error('========== GALLERY UPLOAD ERROR ==========');
+    console.error(error);
     return res.status(500).json({
       success: false,
       error: 'Server error',
@@ -124,8 +149,10 @@ exports.deleteGalleryImage = async (req, res) => {
 
     // Physical file delete
     const filePath = path.join(__dirname, '..', image.path.replace(/^\//, ''));
+    
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
+      console.log('Physical file deleted:', filePath);
     }
 
     await image.deleteOne();
