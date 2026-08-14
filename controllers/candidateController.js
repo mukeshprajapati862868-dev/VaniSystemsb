@@ -1,100 +1,382 @@
 const Candidate = require('../models/Candidate');
 
-// Register a new candidate
+// ======================================================
+// REGISTER CANDIDATE
+// POST /api/candidates/register
+// ======================================================
+
 exports.registerCandidate = async (req, res) => {
   try {
+    console.log(
+      '======================================'
+    );
+
+    console.log(
+      'CANDIDATE REGISTRATION REQUEST'
+    );
+
+    console.log(
+      '======================================'
+    );
+
+    const body = req.body || {};
+
     const candidatePayload = {
-      candidateId: req.body.candidateId,
-      applyFor: req.body.applyFor,
-      applicantName: req.body.applicantName,
-      fatherName: req.body.fatherName,
-      motherName: req.body.motherName,
-      dob: req.body.dob,
-      gender: req.body.gender,
-      caste: req.body.caste,
-      mobile: req.body.mobile,
-      aadhar: req.body.aadhar,
-      email: req.body.email,
-      country: req.body.country || 'India',
-      state: req.body.state,
-      city: req.body.city,
-      address: req.body.address,
-      pinCode: req.body.pinCode,
-      qualification: req.body.qualification,
-      status: req.body.status || 'Registered',
-      paymentStatus: req.body.paymentStatus || 'Pending',
-      registrationDate: req.body.registrationDate || new Date().toISOString(),
-      registrationNo: req.body.registrationNo,
+      candidateId: body.candidateId,
+
+      applyFor: body.applyFor,
+
+      applicantName: body.applicantName,
+
+      fatherName: body.fatherName,
+
+      motherName: body.motherName,
+
+      dob: body.dob,
+
+      gender: body.gender,
+
+      caste: body.caste,
+
+      mobile: body.mobile,
+
+      aadhar: body.aadhar,
+
+      email: body.email,
+
+      country:
+        body.country || 'India',
+
+      state: body.state,
+
+      city: body.city,
+
+      address: body.address,
+
+      pinCode: body.pinCode,
+
+      qualification: body.qualification,
+
+      status:
+        body.status || 'Registered',
+
+      paymentStatus:
+        body.paymentStatus || 'Pending',
+
+      registrationDate:
+        body.registrationDate ||
+        new Date().toISOString(),
+
+      registrationNo:
+        body.registrationNo
     };
 
-    if (!candidatePayload.email || !candidatePayload.mobile || !candidatePayload.applicantName) {
-      return res.status(400).json({ success: false, error: 'Applicant name, email and mobile are required' });
+    // ==================================================
+    // REQUIRED FIELD CHECK
+    // ==================================================
+
+    if (
+      !candidatePayload.applicantName ||
+      !candidatePayload.email ||
+      !candidatePayload.mobile
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Applicant name, email and mobile are required'
+      });
     }
 
-    // Prevent duplicate email registrations
-    const exists = await Candidate.findOne({ email: candidatePayload.email });
+    // ==================================================
+    // NORMALIZE EMAIL
+    // ==================================================
+
+    candidatePayload.email =
+      String(candidatePayload.email)
+        .trim()
+        .toLowerCase();
+
+    // ==================================================
+    // CHECK EXISTING EMAIL
+    // ==================================================
+
+    const exists =
+      await Candidate.findOne({
+        email: candidatePayload.email
+      });
+
     if (exists) {
-      return res.status(400).json({ success: false, error: 'Candidate already registered with this email' });
+      return res.status(400).json({
+        success: false,
+        error:
+          'Candidate already registered with this email'
+      });
     }
 
-    // Generate a unique registration number if not provided
-    const registrationNumber = candidatePayload.registrationNumber || `DCPU/${new Date().getFullYear()}/${Date.now().toString().slice(-6)}`;
-    candidatePayload.registrationNumber = registrationNumber;
-    if (!candidatePayload.registrationNo) {
-      candidatePayload.registrationNo = registrationNumber;
+    // ==================================================
+    // GENERATE UNIQUE REGISTRATION NUMBER
+    // ==================================================
+
+    let registrationNumber =
+      candidatePayload.registrationNo;
+
+    if (!registrationNumber) {
+      registrationNumber =
+        `DCPU/${new Date().getFullYear()}/${Date.now()
+          .toString()
+          .slice(-6)}`;
     }
 
-    if (req.file) {
-      candidatePayload.image = {
-        path: `/uploads/candidates/${req.file.filename}`,
-        filename: req.file.filename
-      };
+    // ==================================================
+    // CHECK REGISTRATION NUMBER
+    // ==================================================
+
+    const registrationExists =
+      await Candidate.findOne({
+        registrationNumber
+      });
+
+    if (registrationExists) {
+      registrationNumber =
+        `DCPU/${new Date().getFullYear()}/${Date.now()}`;
     }
 
-    const candidate = await Candidate.create(candidatePayload);
+    candidatePayload.registrationNumber =
+      registrationNumber;
 
-    res.status(201).json({ success: true, message: 'Candidate registered', data: candidate });
+    // ==================================================
+    // REGISTRATION NO
+    // ==================================================
+
+    if (
+      !candidatePayload.registrationNo
+    ) {
+      candidatePayload.registrationNo =
+        registrationNumber;
+    }
+
+    // ==================================================
+    // CREATE CANDIDATE
+    // ==================================================
+
+    const candidate =
+      await Candidate.create(
+        candidatePayload
+      );
+
+    console.log(
+      'Candidate registered successfully:',
+      candidate._id
+    );
+
+    // ==================================================
+    // SUCCESS
+    // ==================================================
+
+    return res.status(201).json({
+      success: true,
+
+      message:
+        'Candidate registered successfully',
+
+      data: candidate
+    });
+
   } catch (error) {
-    console.error('Candidate register error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+
+    console.error(
+      '======================================'
+    );
+
+    console.error(
+      'CANDIDATE REGISTER ERROR'
+    );
+
+    console.error(
+      error
+    );
+
+    console.error(
+      error.stack
+    );
+
+    console.error(
+      '======================================'
+    );
+
+    // ==================================================
+    // DUPLICATE KEY
+    // ==================================================
+
+    if (error.code === 11000) {
+
+      const duplicateField =
+        Object.keys(
+          error.keyPattern || {}
+        )[0] || 'registrationNumber';
+
+      return res.status(400).json({
+        success: false,
+        error:
+          `${duplicateField} already exists`
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error:
+        error.message ||
+        'Candidate registration failed'
+    });
   }
 };
 
-exports.getCandidates = async (req, res) => {
+// ======================================================
+// GET ALL CANDIDATES
+// GET /api/candidates
+// ======================================================
+
+exports.getCandidates = async (
+  req,
+  res
+) => {
   try {
-    const candidates = await Candidate.find().sort({ createdAt: -1 });
-    res.status(200).json({ success: true, data: candidates });
+
+    const candidates =
+      await Candidate
+        .find()
+        .sort({
+          createdAt: -1
+        });
+
+    return res.status(200).json({
+      success: true,
+      count: candidates.length,
+      data: candidates
+    });
+
   } catch (error) {
-    console.error('Get candidates error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+
+    console.error(
+      'Get candidates error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        error.message ||
+        'Unable to get candidates'
+    });
   }
 };
 
-exports.deleteCandidate = async (req, res) => {
+// ======================================================
+// DELETE CANDIDATE
+// DELETE /api/candidates/:id
+// ======================================================
+
+exports.deleteCandidate = async (
+  req,
+  res
+) => {
   try {
-    const candidate = await Candidate.findByIdAndDelete(req.params.id);
+
+    const candidate =
+      await Candidate.findByIdAndDelete(
+        req.params.id
+      );
+
     if (!candidate) {
-      return res.status(404).json({ success: false, error: 'Candidate not found' });
+      return res.status(404).json({
+        success: false,
+        error:
+          'Candidate not found'
+      });
     }
-    res.status(200).json({ success: true, message: 'Candidate deleted' });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        'Candidate deleted successfully'
+    });
+
   } catch (error) {
-    console.error('Delete candidate error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+
+    console.error(
+      'Delete candidate error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        error.message ||
+        'Unable to delete candidate'
+    });
   }
 };
 
-exports.updatePaymentStatus = async (req, res) => {
+// ======================================================
+// UPDATE PAYMENT STATUS
+// PUT /api/candidates/:id/payment-status
+// ======================================================
+
+exports.updatePaymentStatus = async (
+  req,
+  res
+) => {
   try {
-    const candidate = await Candidate.findById(req.params.id);
+
+    const candidate =
+      await Candidate.findById(
+        req.params.id
+      );
+
     if (!candidate) {
-      return res.status(404).json({ success: false, error: 'Candidate not found' });
+      return res.status(404).json({
+        success: false,
+        error:
+          'Candidate not found'
+      });
     }
-    const { paymentStatus } = req.body;
-    candidate.paymentStatus = paymentStatus || candidate.paymentStatus;
+
+    const {
+      paymentStatus
+    } = req.body || {};
+
+    if (!paymentStatus) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Payment status is required'
+      });
+    }
+
+    candidate.paymentStatus =
+      paymentStatus;
+
     await candidate.save();
-    res.status(200).json({ success: true, data: candidate });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        'Payment status updated successfully',
+      data: candidate
+    });
+
   } catch (error) {
-    console.error('Update candidate payment status error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+
+    console.error(
+      'Update candidate payment status error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        error.message ||
+        'Unable to update payment status'
+    });
   }
 };
