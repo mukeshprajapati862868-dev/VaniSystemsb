@@ -4,7 +4,7 @@ const galleryController = require('../controllers/galleryController');
 
 const router = express.Router();
 
-// Upload image
+// Upload image (base64)
 router.post(
   '/upload',
   [
@@ -25,6 +25,9 @@ router.post(
 
 // Get all images
 router.get('/', galleryController.getGalleryImages);
+
+// Update image
+router.put('/:id', galleryController.updateGalleryImage);
 
 // Delete image
 router.delete('/:id', galleryController.deleteGalleryImage);
