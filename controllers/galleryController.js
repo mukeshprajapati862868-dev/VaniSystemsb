@@ -4,11 +4,19 @@ const path = require('path');
 
 // ==================== UPLOAD ====================
 exports.uploadFromDataUrl = async (req, res) => {
+  // Sabse pehle response bhejne layak banao
   try {
+    console.log('===== GALLERY UPLOAD HIT =====');
+
+    if (!req.body) {
+      return res.status(400).json({ success: false, error: 'No body received' });
+    }
+
     const { name, dataUrl } = req.body;
 
-    console.log('=== Gallery Upload Started ===');
-    console.log('Received name:', name);
+    console.log('Name:', name);
+    console.log('dataUrl present:', !!dataUrl);
+    console.log('dataUrl length:', dataUrl ? dataUrl.length : 0);
 
     if (!name || !dataUrl) {
       return res.status(400).json({
@@ -17,57 +25,53 @@ exports.uploadFromDataUrl = async (req, res) => {
       });
     }
 
-    // Base64 validation
+    // ===== Base64 check =====
     const matches = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
-    
+
     if (!matches) {
-      console.log('Invalid dataUrl format');
       return res.status(400).json({
         success: false,
-        error: 'Invalid image data. Only png, jpeg, jpg, webp allowed'
+        error: 'Invalid image format. Only PNG, JPEG, JPG, WEBP allowed'
       });
     }
 
     let ext = matches[1].toLowerCase();
     if (ext === 'jpeg') ext = 'jpg';
-
     const base64Data = matches[2];
 
-    // ========== STRONG FILENAME CLEANING ==========
-    let cleanName = name
-      .replace(/\.(png|jpeg|jpg|webp)$/gi, '')   // remove extension
-      .replace(/[^a-zA-Z0-9-_]/g, '-')          // only safe characters
-      .replace(/-+/g, '-')                       // multiple - to single
-      .replace(/^-|-$/g, '')                     // remove starting/ending -
-      .toLowerCase();
-
-    if (!cleanName) cleanName = 'image';
+    // ===== Clean filename =====
+    let cleanName = String(name)
+      .replace(/\.(png|jpe?g|webp)$/gi, '')
+      .replace(/[^a-zA-Z0-9-_]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase() || 'image';
 
     const filename = `${Date.now()}-${cleanName}.${ext}`;
     console.log('Final filename:', filename);
 
-    // ========== UPLOAD FOLDER ==========
+    // ===== Folder create =====
     const uploadDir = path.join(__dirname, '..', 'uploads', 'gallery');
-
+    
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
-      console.log('Created gallery folder');
+      console.log('Folder created');
     }
 
     const filePath = path.join(uploadDir, filename);
 
-    // Write file
+    // ===== Write file =====
     fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
-    console.log('File written successfully:', filePath);
+    console.log('File written successfully');
 
-    // ========== SAVE IN DATABASE ==========
+    // ===== Save to DB =====
     const gallery = await Gallery.create({
       name: cleanName,
       filename: filename,
       path: `/uploads/gallery/${filename}`
     });
 
-    console.log('Saved in DB:', gallery._id);
+    console.log('Saved to DB:', gallery._id);
 
     return res.status(201).json({
       success: true,
@@ -75,12 +79,15 @@ exports.uploadFromDataUrl = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('========== GALLERY UPLOAD ERROR ==========');
-    console.error(error);
+    console.error('===== UPLOAD ERROR =====');
+    console.error(error.message);
+    console.error(error.stack);
+
+    // Hamesha proper JSON bhejo
     return res.status(500).json({
       success: false,
-      error: 'Server error',
-      message: error.message
+      error: error.message || 'Unknown server error',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -94,11 +101,10 @@ exports.getGalleryImages = async (req, res) => {
       data: galleryImages
     });
   } catch (error) {
-    console.error('Get gallery images error:', error);
+    console.error(error);
     return res.status(500).json({
       success: false,
-      error: 'Server error',
-      message: error.message
+      error: error.message
     });
   }
 };
@@ -106,31 +112,21 @@ exports.getGalleryImages = async (req, res) => {
 // ==================== UPDATE ====================
 exports.updateGalleryImage = async (req, res) => {
   try {
-    const { name } = req.body;
     const image = await Gallery.findById(req.params.id);
-
     if (!image) {
-      return res.status(404).json({
-        success: false,
-        error: 'Image not found'
-      });
+      return res.status(404).json({ success: false, error: 'Image not found' });
     }
 
-    if (name) {
-      image.name = name;
+    if (req.body.name) {
+      image.name = req.body.name;
       await image.save();
     }
 
-    return res.status(200).json({
-      success: true,
-      data: image
-    });
+    return res.status(200).json({ success: true, data: image });
   } catch (error) {
-    console.error('Update gallery image error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Server error',
-      message: error.message
+      error: error.message
     });
   }
 };
@@ -139,20 +135,13 @@ exports.updateGalleryImage = async (req, res) => {
 exports.deleteGalleryImage = async (req, res) => {
   try {
     const image = await Gallery.findById(req.params.id);
-
     if (!image) {
-      return res.status(404).json({
-        success: false,
-        error: 'Image not found'
-      });
+      return res.status(404).json({ success: false, error: 'Image not found' });
     }
 
-    // Physical file delete
     const filePath = path.join(__dirname, '..', image.path.replace(/^\//, ''));
-    
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
-      console.log('Physical file deleted:', filePath);
     }
 
     await image.deleteOne();
@@ -162,11 +151,9 @@ exports.deleteGalleryImage = async (req, res) => {
       message: 'Image deleted successfully'
     });
   } catch (error) {
-    console.error('Delete gallery image error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Server error',
-      message: error.message
+      error: error.message
     });
   }
 };
