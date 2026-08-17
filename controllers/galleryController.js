@@ -4,19 +4,10 @@ const path = require('path');
 
 // ==================== UPLOAD ====================
 exports.uploadFromDataUrl = async (req, res) => {
-  // Sabse pehle response bhejne layak banao
   try {
     console.log('===== GALLERY UPLOAD HIT =====');
 
-    if (!req.body) {
-      return res.status(400).json({ success: false, error: 'No body received' });
-    }
-
     const { name, dataUrl } = req.body;
-
-    console.log('Name:', name);
-    console.log('dataUrl present:', !!dataUrl);
-    console.log('dataUrl length:', dataUrl ? dataUrl.length : 0);
 
     if (!name || !dataUrl) {
       return res.status(400).json({
@@ -25,9 +16,8 @@ exports.uploadFromDataUrl = async (req, res) => {
       });
     }
 
-    // ===== Base64 check =====
+    // Base64 check
     const matches = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
-
     if (!matches) {
       return res.status(400).json({
         success: false,
@@ -39,7 +29,7 @@ exports.uploadFromDataUrl = async (req, res) => {
     if (ext === 'jpeg') ext = 'jpg';
     const base64Data = matches[2];
 
-    // ===== Clean filename =====
+    // ===== CLEAN NAME (double extension fix) =====
     let cleanName = String(name)
       .replace(/\.(png|jpe?g|webp)$/gi, '')
       .replace(/[^a-zA-Z0-9-_]/g, '-')
@@ -50,28 +40,24 @@ exports.uploadFromDataUrl = async (req, res) => {
     const filename = `${Date.now()}-${cleanName}.${ext}`;
     console.log('Final filename:', filename);
 
-    // ===== Folder create =====
+    // Folder
     const uploadDir = path.join(__dirname, '..', 'uploads', 'gallery');
-    
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
-      console.log('Folder created');
     }
 
     const filePath = path.join(uploadDir, filename);
 
-    // ===== Write file =====
+    // Write file
     fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
-    console.log('File written successfully');
+    console.log('File written:', filePath);
 
-    // ===== Save to DB =====
+    // Save DB
     const gallery = await Gallery.create({
       name: cleanName,
       filename: filename,
       path: `/uploads/gallery/${filename}`
     });
-
-    console.log('Saved to DB:', gallery._id);
 
     return res.status(201).json({
       success: true,
@@ -79,15 +65,10 @@ exports.uploadFromDataUrl = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('===== UPLOAD ERROR =====');
-    console.error(error.message);
-    console.error(error.stack);
-
-    // Hamesha proper JSON bhejo
+    console.error('UPLOAD ERROR:', error.message);
     return res.status(500).json({
       success: false,
-      error: error.message || 'Unknown server error',
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: error.message || 'Server error'
     });
   }
 };
