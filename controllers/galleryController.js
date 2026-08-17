@@ -59,13 +59,18 @@ exports.uploadFromDataUrl = async (req, res) => {
       path: `/uploads/gallery/${filename}`
     });
 
+    console.log('Saved to DB:', gallery._id);
+
     return res.status(201).json({
       success: true,
       data: gallery
     });
 
   } catch (error) {
-    console.error('UPLOAD ERROR:', error.message);
+    console.error('===== UPLOAD ERROR =====');
+    console.error(error.message);
+    console.error(error.stack);
+
     return res.status(500).json({
       success: false,
       error: error.message || 'Server error'
