@@ -1,174 +1,277 @@
-const express = require('express');
+// const express = require('express');
+// const { body, validationResult } = require('express-validator');
+// const multer = require('multer');
+// const path = require('path');
+// const fs = require('fs');
+// const candidateController = require('../controllers/candidateController');
+
+// const router = express.Router();
+
+// // Ensure upload folder exists
+// const uploadDir = path.join(__dirname, '..', 'uploads', 'candidates');
+// fs.mkdirSync(uploadDir, { recursive: true });
+
+// const storage = multer.diskStorage({
+//   destination: function (req, file, cb) {
+//     cb(null, uploadDir);
+//   },
+//   filename: function (req, file, cb) {
+//     const safeName = Date.now() + '-' + file.originalname.replace(/\s+/g, '-');
+//     cb(null, safeName);
+//   }
+// });
+
+// const upload = multer({ storage })
+
+// // POST /api/candidates/register
+// router.post('/register', upload.single('image'), [
+//   body('applicantName').trim().notEmpty().withMessage('Applicant name is required'),
+//   body('email').isEmail().withMessage('Valid email is required'),
+//   body('mobile').matches(/^[0-9]{10}$/).withMessage('Valid 10-digit mobile number is required')
+// ], (req, res) => {
+//   const errors = validationResult(req);
+//   if (!errors.isEmpty()) {
+//     return res.status(400).json({ success: false, errors: errors.array() });
+//   }
+//   candidateController.registerCandidate(req, res);
+// });
+
+// // GET /api/candidates
+// router.get('/', (req, res) => {
+//   candidateController.getCandidates(req, res);
+// });
+
+// // DELETE /api/candidates/:id
+// router.delete('/:id', (req, res) => {
+//   candidateController.deleteCandidate(req, res);
+// });
+
+// // PUT /api/candidates/:id/payment-status
+// router.put('/:id/payment-status', [
+//   body('paymentStatus').trim().notEmpty().withMessage('Payment status is required')
+// ], (req, res) => {
+//   const errors = validationResult(req);
+//   if (!errors.isEmpty()) {
+//     return res.status(400).json({ success: false, errors: errors.array() });
+//   }
+//   candidateController.updatePaymentStatus(req, res);
+// });
+
+// module.exports = router;
+
+const express = require("express");
+
 const {
   body,
-  validationResult
-} = require('express-validator');
+  validationResult,
+} = require("express-validator");
 
-const candidateController = require('../controllers/candidateController');
+const multer = require("multer");
 
-const router = express.Router();
+const path = require("path");
+
+const fs = require("fs");
+
+const candidateController =
+  require("../controllers/candidateController");
+
+const router =
+  express.Router();
+
+// ======================================================
+// UPLOAD DIRECTORY
+// ======================================================
+
+const uploadDir =
+  path.join(
+    __dirname,
+    "..",
+    "uploads",
+    "candidates"
+  );
+
+fs.mkdirSync(
+  uploadDir,
+  {
+    recursive: true,
+  }
+);
+
+// ======================================================
+// MULTER STORAGE
+// ======================================================
+
+const storage =
+  multer.diskStorage({
+    destination:
+      function (
+        req,
+        file,
+        cb
+      ) {
+        cb(
+          null,
+          uploadDir
+        );
+      },
+
+    filename:
+      function (
+        req,
+        file,
+        cb
+      ) {
+        const extension =
+          path.extname(
+            file.originalname
+          );
+
+        const safeName =
+          Date.now() +
+          "-" +
+          Math.round(
+            Math.random() *
+              1e9
+          ) +
+          extension;
+
+        cb(
+          null,
+          safeName
+        );
+      },
+  });
+
+// ======================================================
+// MULTER
+// ======================================================
+
+const upload =
+  multer({
+    storage,
+    limits: {
+      fileSize:
+        5 * 1024 * 1024,
+    },
+  });
 
 // ======================================================
 // POST /api/candidates/register
 // ======================================================
 
 router.post(
-  '/register',
+  "/register",
+  upload.single("image"),
 
   [
-    body('applicantName')
+    body("applicantName")
       .trim()
       .notEmpty()
-      .withMessage('Applicant name is required'),
-
-    body('email')
-      .trim()
-      .isEmail()
-      .withMessage('Valid email is required'),
-
-    body('mobile')
-      .trim()
-      .matches(/^[0-9]{10}$/)
       .withMessage(
-        'Valid 10-digit mobile number is required'
+        "Applicant name is required"
+      ),
+
+    body("email")
+      .isEmail()
+      .withMessage(
+        "Valid email is required"
+      ),
+
+    body("mobile")
+      .matches(
+        /^[0-9]{10}$/
       )
+      .withMessage(
+        "Valid 10-digit mobile number is required"
+      ),
   ],
 
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Validation failed',
-          errors: errors.array()
-        });
-      }
-
-      return await candidateController.registerCandidate(
-        req,
-        res
+  (req, res) => {
+    const errors =
+      validationResult(
+        req
       );
 
-    } catch (error) {
-      console.error(
-        'Candidate registration route error:',
-        error
-      );
-
-      return res.status(500).json({
+    if (
+      !errors.isEmpty()
+    ) {
+      return res.status(400).json({
         success: false,
-        error:
-          error.message ||
-          'Candidate registration failed'
+        errors:
+          errors.array(),
       });
     }
+
+    return candidateController.registerCandidate(
+      req,
+      res
+    );
   }
 );
 
 // ======================================================
-// GET /api/candidates
+// GET ALL CANDIDATES
 // ======================================================
 
 router.get(
-  '/',
-  async (req, res) => {
-    try {
-      return await candidateController.getCandidates(
-        req,
-        res
-      );
-    } catch (error) {
-      console.error(
-        'Get candidates route error:',
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        error:
-          error.message ||
-          'Unable to get candidates'
-      });
-    }
-  }
+  "/",
+  candidateController.getCandidates
 );
 
 // ======================================================
-// DELETE /api/candidates/:id
+// GET CANDIDATE BY REGISTRATION NUMBER
+// ======================================================
+
+router.get(
+  "/registration/:registrationNumber",
+  candidateController.getCandidateByRegistrationNumber
+);
+
+// ======================================================
+// DELETE CANDIDATE
 // ======================================================
 
 router.delete(
-  '/:id',
-  async (req, res) => {
-    try {
-      return await candidateController.deleteCandidate(
-        req,
-        res
-      );
-    } catch (error) {
-      console.error(
-        'Delete candidate route error:',
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        error:
-          error.message ||
-          'Unable to delete candidate'
-      });
-    }
-  }
+  "/:id",
+  candidateController.deleteCandidate
 );
 
 // ======================================================
-// PUT /api/candidates/:id/payment-status
+// UPDATE PAYMENT STATUS
 // ======================================================
 
 router.put(
-  '/:id/payment-status',
+  "/:id/payment-status",
 
   [
-    body('paymentStatus')
+    body("paymentStatus")
       .trim()
       .notEmpty()
       .withMessage(
-        'Payment status is required'
-      )
+        "Payment status is required"
+      ),
   ],
 
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Validation failed',
-          errors: errors.array()
-        });
-      }
-
-      return await candidateController.updatePaymentStatus(
-        req,
-        res
+  (req, res) => {
+    const errors =
+      validationResult(
+        req
       );
 
-    } catch (error) {
-      console.error(
-        'Update payment status route error:',
-        error
-      );
-
-      return res.status(500).json({
+    if (
+      !errors.isEmpty()
+    ) {
+      return res.status(400).json({
         success: false,
-        error:
-          error.message ||
-          'Unable to update payment status'
+        errors:
+          errors.array(),
       });
     }
+
+    return candidateController.updatePaymentStatus(
+      req,
+      res
+    );
   }
 );
 
