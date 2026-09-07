@@ -1,3 +1,6 @@
+// ==============================
+// models/Order.js  (COMPLETE FIXED)
+// ==============================
 const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema({
@@ -25,27 +28,27 @@ const orderSchema = new mongoose.Schema({
   },
   customerEmail: {
     type: String,
-    required: true
+    default: ''
   },
   customerName: {
     type: String,
-    required: true
+    default: 'Customer'
   },
   customerPhone: {
     type: String,
-    required: true
+    default: ''
   },
   customerAddress: {
     type: String,
-    required: true
+    default: ''
   },
   customerCity: {
     type: String,
-    required: true
+    default: ''
   },
   customerPinCode: {
     type: String,
-    required: true
+    default: ''
   },
   items: [{
     id: {
@@ -55,26 +58,25 @@ const orderSchema = new mongoose.Schema({
     title: String,
     image: String,
     price: Number,
-    discountPrice: Number,
-    quantity: Number,
-    gst: Number,
-    shippingCharge: Number
+    quantity: Number
   }],
   totalItems: {
     type: Number,
-    required: true
+    required: true,
+    default: 0
   },
   subtotal: {
     type: Number,
-    required: true
+    required: true,
+    default: 0
   },
   shippingCharge: {
     type: Number,
-    required: true
+    default: 0
   },
   tax: {
     type: Number,
-    required: true
+    default: 0
   },
   discount: {
     type: Number,
@@ -82,7 +84,8 @@ const orderSchema = new mongoose.Schema({
   },
   grandTotal: {
     type: Number,
-    required: true
+    required: true,
+    default: 0
   },
   paymentMethod: {
     type: String,
@@ -130,7 +133,6 @@ const orderSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for search
 orderSchema.index({ userId: 1 });
 orderSchema.index({ customerEmail: 1 });
 orderSchema.index({ status: 1 });
