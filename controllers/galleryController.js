@@ -1,145 +1,172 @@
-const Gallery = require('../models/Gallery');
-const fs = require('fs');
-const path = require('path');
+const Gallery = require("../models/Gallery");
+const fs = require("fs");
+const path = require("path");
 
-// ==================== UPLOAD ====================
+// ============================================================
+// UPLOAD IMAGE FROM BASE64 DATA URL
+// ============================================================
 exports.uploadFromDataUrl = async (req, res) => {
   try {
-    console.log('===== GALLERY UPLOAD HIT =====');
+    const { name, dataUrl } = req.body || {};
 
-    const { name, dataUrl } = req.body;
-
+    // --------------------------------------------------------
+    // VALIDATION
+    // --------------------------------------------------------
     if (!name || !dataUrl) {
       return res.status(400).json({
         success: false,
-        error: 'Name and dataUrl are required'
+        error: "Name and dataUrl are required",
       });
     }
 
-    // Base64 check
-    const matches = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
+    // --------------------------------------------------------
+    // PARSE BASE64 DATA URL
+    // Supports:
+    // PNG / JPEG / JPG / WEBP
+    // --------------------------------------------------------
+    const matches = String(dataUrl).match(
+      /^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/i
+    );
+
     if (!matches) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid image format. Only PNG, JPEG, JPG, WEBP allowed'
+        error: "Invalid image data",
       });
     }
 
-    let ext = matches[1].toLowerCase();
-    if (ext === 'jpeg') ext = 'jpg';
+    const mimeType = matches[1].toLowerCase();
     const base64Data = matches[2];
 
-    // ===== CLEAN NAME (double extension fix) =====
-    let cleanName = String(name)
-      .replace(/\.(png|jpe?g|webp)$/gi, '')
-      .replace(/[^a-zA-Z0-9-_]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-      .toLowerCase() || 'image';
+    // --------------------------------------------------------
+    // GET FILE EXTENSION
+    // --------------------------------------------------------
+    let ext = "jpg";
 
-    const filename = `${Date.now()}-${cleanName}.${ext}`;
-    console.log('Final filename:', filename);
-
-    // Folder
-    const uploadDir = path.join(__dirname, '..', 'uploads', 'gallery');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    if (mimeType === "image/png") {
+      ext = "png";
+    } else if (mimeType === "image/jpeg") {
+      ext = "jpeg";
+    } else if (mimeType === "image/jpg") {
+      ext = "jpg";
+    } else if (mimeType === "image/webp") {
+      ext = "webp";
     }
 
-    const filePath = path.join(uploadDir, filename);
+    // --------------------------------------------------------
+    // SAFE FILE NAME
+    // --------------------------------------------------------
+    const safeName = String(name)
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]/g, "-")
+      .replace(/-+/g, "-");
 
-    // Write file
-    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
-    console.log('File written:', filePath);
+    const filename =
+      Date.now() +
+      "-" +
+      safeName +
+      "." +
+      ext;
 
-    // Save DB
-    const gallery = await Gallery.create({
-      name: cleanName,
-      filename: filename,
-      path: `/uploads/gallery/${filename}`
+    // --------------------------------------------------------
+    // UPLOAD DIRECTORY
+    // --------------------------------------------------------
+    const uploadDir = path.join(
+      __dirname,
+      "..",
+      "uploads",
+      "gallery"
+    );
+
+    // Create folder if not exists
+    fs.mkdirSync(uploadDir, {
+      recursive: true,
     });
 
-    console.log('Saved to DB:', gallery._id);
+    // --------------------------------------------------------
+    // FILE PATH
+    // --------------------------------------------------------
+    const filePath = path.join(
+      uploadDir,
+      filename
+    );
 
+    // --------------------------------------------------------
+    // WRITE FILE
+    // --------------------------------------------------------
+    fs.writeFileSync(
+      filePath,
+      Buffer.from(base64Data, "base64")
+    );
+
+    // --------------------------------------------------------
+    // PUBLIC IMAGE PATH
+    // --------------------------------------------------------
+    const imagePath =
+      `/uploads/gallery/${filename}`;
+
+    // --------------------------------------------------------
+    // SAVE DATA IN MONGODB
+    // --------------------------------------------------------
+    const gallery = await Gallery.create({
+      name: String(name).trim(),
+      filename,
+      path: imagePath,
+    });
+
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
     return res.status(201).json({
       success: true,
-      data: gallery
+      message: "Gallery image uploaded successfully",
+      data: gallery,
     });
-
   } catch (error) {
-    console.error('===== UPLOAD ERROR =====');
-    console.error(error.message);
-    console.error(error.stack);
+    console.error(
+      "Gallery upload error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      error: error.message || 'Server error'
+      error:
+        error.message ||
+        "Server error",
     });
   }
 };
 
-// ==================== GET ALL ====================
-exports.getGalleryImages = async (req, res) => {
+// ============================================================
+// GET ALL GALLERY IMAGES
+// ============================================================
+exports.getGalleryImages = async (
+  req,
+  res
+) => {
   try {
-    const galleryImages = await Gallery.find().sort({ createdAt: -1 });
-    return res.status(200).json({
-      success: true,
-      data: galleryImages
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// ==================== UPDATE ====================
-exports.updateGalleryImage = async (req, res) => {
-  try {
-    const image = await Gallery.findById(req.params.id);
-    if (!image) {
-      return res.status(404).json({ success: false, error: 'Image not found' });
-    }
-
-    if (req.body.name) {
-      image.name = req.body.name;
-      await image.save();
-    }
-
-    return res.status(200).json({ success: true, data: image });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// ==================== DELETE ====================
-exports.deleteGalleryImage = async (req, res) => {
-  try {
-    const image = await Gallery.findById(req.params.id);
-    if (!image) {
-      return res.status(404).json({ success: false, error: 'Image not found' });
-    }
-
-    const filePath = path.join(__dirname, '..', image.path.replace(/^\//, ''));
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-
-    await image.deleteOne();
+    const galleryImages =
+      await Gallery.find()
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
 
     return res.status(200).json({
       success: true,
-      message: 'Image deleted successfully'
+      data: galleryImages,
     });
   } catch (error) {
+    console.error(
+      "Get gallery images error:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
-      error: error.message
+      error:
+        error.message ||
+        "Server error",
     });
   }
 };
