@@ -1,292 +1,1118 @@
+// ==============================
+// controllers/orderController.js
+// ==============================
+
 const Order = require('../models/Order');
-const { createAndSendNotification } = require('./notificationController');
 
-// Helper functions to generate unique IDs
-const generateOrderId = () => `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-const generateInvoiceNumber = () => `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-const generateTrackingNumber = () => `TRK-${Math.random().toString(36).substr(2, 10).toUpperCase()}`;
+// ======================================================
+// ORDER ID GENERATOR
+// ======================================================
 
-/**
- * @desc    Get all orders (admin) or user orders (user)
- * @route   GET /api/orders
- * @access  Private
- */
-exports.getAllOrders = async (req, res) => {
+const generateOrderId = () => {
+  const timestamp = Date.now().toString().slice(-8);
+  const random = Math.floor(1000 + Math.random() * 9000);
+
+  return `ORD-${timestamp}-${random}`;
+};
+
+// ======================================================
+// INVOICE NUMBER GENERATOR
+// ======================================================
+
+const generateInvoiceNumber = () => {
+  const timestamp = Date.now().toString().slice(-8);
+  const random = Math.floor(100 + Math.random() * 900);
+
+  return `INV-${timestamp}-${random}`;
+};
+
+// ======================================================
+// TRACKING NUMBER GENERATOR
+// ======================================================
+
+const generateTrackingNumber = () => {
+  const timestamp = Date.now().toString().slice(-8);
+  const random = Math.floor(1000 + Math.random() * 9000);
+
+  return `TRK-${timestamp}-${random}`;
+};
+
+// ======================================================
+// CREATE AND SEND NOTIFICATION
+// ======================================================
+
+const createAndSendNotification = async (app, data) => {
   try {
-    const { status, search, page = 1, limit = 10 } = req.query;
-    const query = {};
-    
-    if (req.user.role !== 'admin') {
-      query.userId = req.user.id;
-    }
-    
-    if (status) query.status = status;
-    
-    if (search) {
-      query.$or = [
-        { orderId: { $regex: search, $options: 'i' } },
-        { customerEmail: { $regex: search, $options: 'i' } },
-        { invoiceNumber: { $regex: search, $options: 'i' } }
-      ];
+    if (!app) {
+      return;
     }
 
-    const skip = (page - 1) * limit;
-    const orders = await Order.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const notificationController = require('./notificationController');
 
-    const total = await Order.countDocuments(query);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        orders,
-        pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / limit) }
-      }
-    });
+    if (
+      notificationController &&
+      typeof notificationController.createNotification === 'function'
+    ) {
+      await notificationController.createNotification({
+        body: data
+      });
+    }
   } catch (error) {
-    console.error('Get orders error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+    console.error(
+      'Notification error:',
+      error.message
+    );
   }
 };
 
-/**
- * @desc    Get single order
- * @route   GET /api/orders/:id
- * @access  Private
- */
-exports.getOrderById = async (req, res) => {
-  try {
-    const order = await Order.findOne({ orderId: req.params.id });
-    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+// ==============================
+// CREATE ORDER
+// ==============================
 
-    if (req.user.role !== 'admin' && order.userId !== req.user.id) {
-      return res.status(403).json({ success: false, error: 'Not authorized' });
-    }
-
-    res.status(200).json({ success: true, data: { order } });
-  } catch (error) {
-    console.error('Get order error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
-  }
-};
-
-/**
- * @desc    Create new order
- * @route   POST /api/orders
- * @access  Private
- */
 exports.createOrder = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
+    }
+
     const generatedId = generateOrderId();
-    
-    // 💡 फ़िक्स: यदिreq.user.email अपरिभाषित (undefined) है, तोreq.body के ईमेल का उपयोग किया जाएगा
-    const targetEmail = req.user.email || req.body.customerEmail || req.body.email || 'user@example.com';
+
+    const targetEmail =
+      req.user?.email ||
+      req.body.customerEmail ||
+      'user@example.com';
+
+    const targetName =
+      req.body.customerName ||
+      req.user?.name ||
+      'Customer';
+
+    const targetPhone =
+      req.body.customerPhone ||
+      req.user?.phone ||
+      '';
 
     const orderData = {
-      ...req.body,
       orderId: generatedId,
-      invoiceNumber: generateInvoiceNumber(),
-      trackingNumber: generateTrackingNumber(),
-      userId: req.user.id,
-      customerEmail: targetEmail,
+
+      invoiceNumber:
+        generateInvoiceNumber(),
+
+      trackingNumber:
+        generateTrackingNumber(),
+
+      userId:
+        req.user._id ||
+        req.user.id,
+
+      customerEmail:
+        targetEmail,
+
+      customerName:
+        targetName,
+
+      customerPhone:
+        targetPhone,
+
+      customerAddress:
+        req.body.customerAddress || '',
+
+      customerCity:
+        req.body.customerCity || '',
+
+      customerPinCode:
+        req.body.customerPinCode || '',
+
+      items:
+        Array.isArray(req.body.items)
+          ? req.body.items
+          : [],
+
+      totalItems:
+        Number(req.body.totalItems) || 0,
+
+      subtotal:
+        Number(req.body.subtotal) || 0,
+
+      shippingCharge: 0,
+
+      tax: 0,
+
+      discount:
+        Number(req.body.discount) || 0,
+
+      grandTotal:
+        Number(req.body.grandTotal) || 0,
+
+      paymentMethod:
+        req.body.paymentMethod ||
+        'Cash On Delivery',
+
+      paymentStatus:
+        req.body.paymentMethod ===
+        'Cash On Delivery'
+          ? 'Pending'
+          : 'Paid',
+
       status: 'Pending',
-      paymentStatus: req.body.paymentMethod === 'Cash On Delivery' ? 'Pending' : 'Paid',
-      timeline: [{
-        status: 'Order Placed',
-        date: new Date().toLocaleString(),
-        remarks: 'Order received successfully',
-        adminName: 'System'
-      }],
-      tracking: {
-        currentLocation: 'Processing Center',
-        estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
-        trackingHistory: [{
+
+      timeline: [
+        {
           status: 'Order Placed',
-          location: 'Processing Center',
-          date: new Date().toLocaleString(),
-          time: new Date().toLocaleTimeString()
-        }]
+
+          date:
+            new Date().toLocaleString(),
+
+          remarks:
+            'Order received successfully',
+
+          adminName: 'System'
+        }
+      ],
+
+      tracking: {
+        currentLocation:
+          'Processing Center',
+
+        estimatedDelivery:
+          new Date(
+            Date.now() +
+            7 * 24 * 60 * 60 * 1000
+          ).toLocaleDateString(),
+
+        trackingHistory: [
+          {
+            status: 'Order Placed',
+
+            location:
+              'Processing Center',
+
+            date:
+              new Date().toLocaleString(),
+
+            time:
+              new Date().toLocaleTimeString()
+          }
+        ]
       }
     };
 
-    const order = await Order.create(orderData);
+    const order =
+      await Order.create(orderData);
 
-    const io = req.app.get('io');
-    if (io) io.to('admin-room').emit('new-order', order);
+    // ==================================================
+    // SOCKET.IO ADMIN NOTIFICATION
+    // ==================================================
 
-    await createAndSendNotification(req.app, {
-      userId: req.user._id || req.user.id,
-      userEmail: targetEmail,
-      title: '📦 Order Placed Successfully!',
-      message: `Thank you for your purchase. Your order ID is ${generatedId}.`,
-      type: 'order'
+    const io =
+      req.app.get('io');
+
+    if (io) {
+      io
+        .to('admin-room')
+        .emit(
+          'new-order',
+          order
+        );
+    }
+
+    // ==================================================
+    // USER NOTIFICATION
+    // ==================================================
+
+    await createAndSendNotification(
+      req.app,
+      {
+        userId:
+          req.user._id ||
+          req.user.id,
+
+        userEmail:
+          targetEmail,
+
+        title:
+          '📦 Order Placed Successfully!',
+
+        message:
+          `Thank you for your purchase. Your order ID is ${generatedId}.`,
+
+        type:
+          'order'
+      }
+    );
+
+    // ==================================================
+    // SUCCESS RESPONSE
+    // ==================================================
+
+    return res.status(201).json({
+      success: true,
+
+      message:
+        'Order created successfully',
+
+      data:
+        order
     });
 
-    res.status(201).json({ success: true, message: 'Order created successfully', data: order });
   } catch (error) {
-    console.error('Create order error:', error);
-    res.status(500).json({ success: false, error: error.message || 'Server error' });
+
+    console.error(
+      'Create order error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      error:
+        error.message ||
+        'Server error'
+    });
   }
 };
 
-/**
- * @desc    Update order status
- * @route   PUT /api/orders/:id/status
- * @access  Private/Admin
- */
-exports.updateOrderStatus = async (req, res) => {
+// ==============================
+// GET ALL ORDERS
+// ==============================
+
+exports.getAllOrders = async (req, res) => {
   try {
-    const { status, remarks, location } = req.body;
-    const order = await Order.findOne({ orderId: req.params.id });
-    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
-    order.status = status;
-    order.timeline.push({ status, date: new Date().toLocaleString(), remarks: remarks || `Status updated to ${status}`, adminName: req.user.name || 'Admin' });
-
-    if (location) {
-      order.tracking.currentLocation = location;
-      order.tracking.trackingHistory.push({ status, location, date: new Date().toLocaleString(), time: new Date().toLocaleTimeString() });
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
     }
 
-    await order.save();
+    const isAdmin =
+      req.user.role === 'admin' ||
+      req.user.role === 'Admin';
 
-    const io = req.app.get('io');
-    if (io) io.to(`user-${order.userId}`).emit('order-updated', order);
+    let orders;
 
-    // Status-specific notification messages
-    let notifTitle = '🔔 Order Status Updated';
-    let notifMessage = `Your order (${order.orderId}) status has changed to: ${status}.`;
+    if (isAdmin) {
 
-    if (status === 'Delivered' || status === 'Completed') {
-      notifTitle = '✅ Order Delivered!';
-      notifMessage = `Great news! Your order (${order.orderId}) has been delivered successfully. Enjoy your purchase!`;
-    } else if (status === 'Shipped') {
-      notifTitle = '🚚 Order Shipped!';
-      notifMessage = `Your order (${order.orderId}) is on its way! Expected delivery: ${order.tracking?.estimatedDelivery || 'soon'}.`;
-    } else if (status === 'Confirmed') {
-      notifTitle = '✔️ Order Confirmed';
-      notifMessage = `Your order (${order.orderId}) has been confirmed and is being prepared.`;
+      orders =
+        await Order.find({})
+          .sort({
+            createdAt: -1
+          });
+
+    } else {
+
+      orders =
+        await Order.find({
+          userId:
+            req.user._id ||
+            req.user.id
+        })
+        .sort({
+          createdAt: -1
+        });
     }
 
-    await createAndSendNotification(req.app, {
-      userId: order.userId,
-      userEmail: order.customerEmail || 'user@example.com',
-      title: notifTitle,
-      message: notifMessage,
-      type: 'order'
+    return res.status(200).json({
+      success: true,
+
+      count:
+        orders.length,
+
+      data: {
+        orders
+      }
     });
 
-    res.status(200).json({ success: true, data: order });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Server error' });
+
+    console.error(
+      'Get all orders error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      error:
+        error.message ||
+        'Failed to fetch orders'
+    });
   }
 };
 
-/**
- * @desc    Cancel order
- * @route   PUT /api/orders/:id/cancel
- * @access  Private
- */
-exports.cancelOrder = async (req, res) => {
+// ==============================
+// GET ORDER BY ID
+// ==============================
+
+exports.getOrderById = async (req, res) => {
   try {
-    const { reason } = req.body;
-    const order = await Order.findOne({ orderId: req.params.id });
-    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
-    if (req.user.role !== 'admin' && order.userId !== req.user.id) return res.status(403).json({ success: false, error: 'Not authorized' });
-    if (['Delivered', 'Completed', 'Cancelled'].includes(order.status)) return res.status(400).json({ success: false, error: 'Cannot cancel' });
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
+    }
 
-    order.status = 'Cancelled';
-    order.cancellationReason = reason;
-    order.timeline.push({ status: 'Cancelled', date: new Date().toLocaleString(), remarks: reason || 'Cancelled by user', adminName: req.user.name || 'Customer' });
+    const order =
+      await Order.findById(
+        req.params.id
+      );
 
-    await order.save();
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found'
+      });
+    }
 
-    const io = req.app.get('io');
-    if (io) io.to('admin-room').emit('order-cancelled', order);
+    const isAdmin =
+      req.user.role === 'admin' ||
+      req.user.role === 'Admin';
 
-    await createAndSendNotification(req.app, {
-      userId: order.userId,
-      userEmail: order.customerEmail || 'user@example.com',
-      title: '❌ Order Cancelled',
-      message: `Order ${order.orderId} has been successfully cancelled.`,
-      type: 'order'
+    const orderUserId =
+      order.userId
+        ? order.userId.toString()
+        : '';
+
+    const currentUserId =
+      (
+        req.user._id ||
+        req.user.id
+      ).toString();
+
+    if (
+      !isAdmin &&
+      orderUserId !== currentUserId
+    ) {
+      return res.status(403).json({
+        success: false,
+        error:
+          'You are not authorized to view this order'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+
+      data: order
     });
 
-    res.status(200).json({ success: true, message: 'Order cancelled successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Server error' });
+
+    console.error(
+      'Get order by ID error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      error:
+        error.message ||
+        'Failed to fetch order'
+    });
   }
 };
 
-/**
- * @desc    Request return/refund for a delivered order
- * @route   PUT /api/orders/:id/return
- * @access  Private
- */
-exports.returnOrder = async (req, res) => {
+// ==============================
+// UPDATE ORDER STATUS
+// ==============================
+
+exports.updateOrderStatus = async (
+  req,
+  res
+) => {
   try {
-    const { reason } = req.body;
-    const order = await Order.findOne({ orderId: req.params.id });
-    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
-    // Only the order owner can request return
-    if (order.userId.toString() !== req.user.id.toString()) {
-      return res.status(403).json({ success: false, error: 'Not authorized' });
+    const {
+      status,
+      remarks
+    } = req.body;
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Order status is required'
+      });
     }
 
-    // Only delivered/completed orders can be returned
-    if (!['Delivered', 'Completed'].includes(order.status)) {
-      return res.status(400).json({ success: false, error: 'Only delivered orders can be returned' });
+    const allowedStatuses = [
+      'Pending',
+      'Confirmed',
+      'Processing',
+      'Shipped',
+      'Out for Delivery',
+      'Delivered',
+      'Cancelled',
+      'Returned'
+    ];
+
+    const normalizedStatus =
+      String(status)
+        .trim();
+
+    if (
+      !allowedStatuses.includes(
+        normalizedStatus
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          `Invalid order status. Allowed statuses: ${allowedStatuses.join(', ')}`
+      });
     }
 
-    order.status = 'Returned';
-    order.returnReason = reason || 'Return requested by customer';
-    order.refundStatus = 'Pending';
-    order.refundAmount = order.grandTotal;
+    const order =
+      await Order.findById(
+        req.params.id
+      );
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error:
+          'Order not found'
+      });
+    }
+
+    order.status =
+      normalizedStatus;
+
+    if (
+      !Array.isArray(
+        order.timeline
+      )
+    ) {
+      order.timeline = [];
+    }
+
     order.timeline.push({
-      status: 'Return Requested',
-      date: new Date().toLocaleString(),
-      remarks: reason || 'Return requested by customer',
-      adminName: req.user.name || 'Customer'
+      status:
+        normalizedStatus,
+
+      date:
+        new Date().toLocaleString(),
+
+      remarks:
+        remarks ||
+        `Order status changed to ${normalizedStatus}`,
+
+      adminName:
+        req.user?.name ||
+        req.user?.email ||
+        'Admin'
+    });
+
+    if (
+      !order.tracking
+    ) {
+      order.tracking = {
+        currentLocation:
+          'Processing Center',
+
+        estimatedDelivery:
+          new Date(
+            Date.now() +
+            7 * 24 * 60 * 60 * 1000
+          ).toLocaleDateString(),
+
+        trackingHistory: []
+      };
+    }
+
+    if (
+      !Array.isArray(
+        order.tracking.trackingHistory
+      )
+    ) {
+      order.tracking.trackingHistory = [];
+    }
+
+    order.tracking.trackingHistory.push({
+      status:
+        normalizedStatus,
+
+      location:
+        order.tracking.currentLocation ||
+        'Processing Center',
+
+      date:
+        new Date().toLocaleString(),
+
+      time:
+        new Date().toLocaleTimeString()
     });
 
     await order.save();
 
-    const io = req.app.get('io');
-    if (io) io.to('admin-room').emit('return-requested', order);
+    const io =
+      req.app.get('io');
 
-    await createAndSendNotification(req.app, {
-      userId: order.userId,
-      userEmail: order.customerEmail,
-      title: '↩️ Return Request Submitted',
-      message: `Your return request for order ${order.orderId} has been submitted. Refund of ₹${order.grandTotal} will be processed within 5-7 business days.`,
-      type: 'order'
+    if (io) {
+      io
+        .to(`user-${order.userId}`)
+        .emit(
+          'order-status-updated',
+          order
+        );
+
+      io
+        .to('admin-room')
+        .emit(
+          'order-status-updated',
+          order
+        );
+    }
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        'Order status updated successfully',
+
+      data:
+        order
     });
 
-    res.status(200).json({ success: true, message: 'Return request submitted successfully', data: order });
   } catch (error) {
-    console.error('Return order error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+
+    console.error(
+      'Update order status error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      error:
+        error.message ||
+        'Failed to update order status'
+    });
   }
 };
-exports.getOrderStats = async (req, res) => {
+
+// ==============================
+// CANCEL ORDER
+// ==============================
+
+exports.cancelOrder = async (
+  req,
+  res
+) => {
   try {
-    const orders = await Order.find({});
-    const stats = {
-      total: orders.length,
-      pending: orders.filter(o => o.status === 'Pending').length,
-      orders: orders.filter(o => o.status === 'Confirmed').length,
-      shipped: orders.filter(o => o.status === 'Shipped').length,
-      delivered: orders.filter(o => ['Delivered', 'Completed'].includes(o.status)).length,
-      cancelled: orders.filter(o => o.status === 'Cancelled').length,
-      totalRevenue: orders.reduce((sum, o) => sum + (o.grandTotal || 0), 0)
-    };
-    res.status(200).json({ success: true, data: { stats } });
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error:
+          'Authentication required'
+      });
+    }
+
+    const order =
+      await Order.findById(
+        req.params.id
+      );
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error:
+          'Order not found'
+      });
+    }
+
+    const isAdmin =
+      req.user.role === 'admin' ||
+      req.user.role === 'Admin';
+
+    const orderUserId =
+      order.userId
+        ? order.userId.toString()
+        : '';
+
+    const currentUserId =
+      (
+        req.user._id ||
+        req.user.id
+      ).toString();
+
+    if (
+      !isAdmin &&
+      orderUserId !== currentUserId
+    ) {
+      return res.status(403).json({
+        success: false,
+        error:
+          'You are not authorized to cancel this order'
+      });
+    }
+
+    if (
+      order.status === 'Delivered'
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Delivered order cannot be cancelled'
+      });
+    }
+
+    if (
+      order.status === 'Cancelled'
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Order is already cancelled'
+      });
+    }
+
+    const reason =
+      req.body?.reason ||
+      'Order cancelled by customer';
+
+    order.status =
+      'Cancelled';
+
+    if (
+      !Array.isArray(
+        order.timeline
+      )
+    ) {
+      order.timeline = [];
+    }
+
+    order.timeline.push({
+      status:
+        'Cancelled',
+
+      date:
+        new Date().toLocaleString(),
+
+      remarks:
+        reason,
+
+      adminName:
+        isAdmin
+          ? (
+              req.user?.name ||
+              req.user?.email ||
+              'Admin'
+            )
+          : 'Customer'
+    });
+
+    if (
+      order.tracking
+    ) {
+
+      if (
+        !Array.isArray(
+          order.tracking.trackingHistory
+        )
+      ) {
+        order.tracking.trackingHistory = [];
+      }
+
+      order.tracking.trackingHistory.push({
+        status:
+          'Cancelled',
+
+        location:
+          order.tracking.currentLocation ||
+          'Processing Center',
+
+        date:
+          new Date().toLocaleString(),
+
+        time:
+          new Date().toLocaleTimeString()
+      });
+    }
+
+    await order.save();
+
+    const io =
+      req.app.get('io');
+
+    if (io) {
+      io
+        .to(`user-${order.userId}`)
+        .emit(
+          'order-cancelled',
+          order
+        );
+
+      io
+        .to('admin-room')
+        .emit(
+          'order-cancelled',
+          order
+        );
+    }
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        'Order cancelled successfully',
+
+      data:
+        order
+    });
+
   } catch (error) {
-    console.error('Get order stats error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+
+    console.error(
+      'Cancel order error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      error:
+        error.message ||
+        'Failed to cancel order'
+    });
   }
+};
+
+// ==============================
+// RETURN ORDER
+// ==============================
+
+exports.returnOrder = async (
+  req,
+  res
+) => {
+  try {
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error:
+          'Authentication required'
+      });
+    }
+
+    const order =
+      await Order.findById(
+        req.params.id
+      );
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error:
+          'Order not found'
+      });
+    }
+
+    const isAdmin =
+      req.user.role === 'admin' ||
+      req.user.role === 'Admin';
+
+    const orderUserId =
+      order.userId
+        ? order.userId.toString()
+        : '';
+
+    const currentUserId =
+      (
+        req.user._id ||
+        req.user.id
+      ).toString();
+
+    if (
+      !isAdmin &&
+      orderUserId !== currentUserId
+    ) {
+      return res.status(403).json({
+        success: false,
+        error:
+          'You are not authorized to return this order'
+      });
+    }
+
+    if (
+      order.status !== 'Delivered'
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Only delivered orders can be returned'
+      });
+    }
+
+    const reason =
+      req.body?.reason ||
+      'Return requested by customer';
+
+    order.status =
+      'Returned';
+
+    if (
+      !Array.isArray(
+        order.timeline
+      )
+    ) {
+      order.timeline = [];
+    }
+
+    order.timeline.push({
+      status:
+        'Returned',
+
+      date:
+        new Date().toLocaleString(),
+
+      remarks:
+        reason,
+
+      adminName:
+        isAdmin
+          ? (
+              req.user?.name ||
+              req.user?.email ||
+              'Admin'
+            )
+          : 'Customer'
+    });
+
+    if (
+      order.tracking
+    ) {
+
+      if (
+        !Array.isArray(
+          order.tracking.trackingHistory
+        )
+      ) {
+        order.tracking.trackingHistory = [];
+      }
+
+      order.tracking.trackingHistory.push({
+        status:
+          'Returned',
+
+        location:
+          order.tracking.currentLocation ||
+          'Processing Center',
+
+        date:
+          new Date().toLocaleString(),
+
+        time:
+          new Date().toLocaleTimeString()
+      });
+    }
+
+    await order.save();
+
+    const io =
+      req.app.get('io');
+
+    if (io) {
+      io
+        .to(`user-${order.userId}`)
+        .emit(
+          'order-returned',
+          order
+        );
+
+      io
+        .to('admin-room')
+        .emit(
+          'order-returned',
+          order
+        );
+    }
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        'Order return processed successfully',
+
+      data:
+        order
+    });
+
+  } catch (error) {
+
+    console.error(
+      'Return order error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      error:
+        error.message ||
+        'Failed to return order'
+    });
+  }
+};
+
+// ==============================
+// GET ORDER STATS
+// ==============================
+
+exports.getOrderStats = async (
+  req,
+  res
+) => {
+  try {
+
+    const totalOrders =
+      await Order.countDocuments();
+
+    const pendingOrders =
+      await Order.countDocuments({
+        status: 'Pending'
+      });
+
+    const confirmedOrders =
+      await Order.countDocuments({
+        status: 'Confirmed'
+      });
+
+    const processingOrders =
+      await Order.countDocuments({
+        status: 'Processing'
+      });
+
+    const shippedOrders =
+      await Order.countDocuments({
+        status: 'Shipped'
+      });
+
+    const outForDeliveryOrders =
+      await Order.countDocuments({
+        status: 'Out for Delivery'
+      });
+
+    const deliveredOrders =
+      await Order.countDocuments({
+        status: 'Delivered'
+      });
+
+    const cancelledOrders =
+      await Order.countDocuments({
+        status: 'Cancelled'
+      });
+
+    const returnedOrders =
+      await Order.countDocuments({
+        status: 'Returned'
+      });
+
+    const salesResult =
+      await Order.aggregate([
+        {
+          $match: {
+            status: {
+              $ne: 'Cancelled'
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+
+            totalSales: {
+              $sum: {
+                $ifNull: [
+                  '$grandTotal',
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ]);
+
+    const totalSales =
+      salesResult.length > 0
+        ? salesResult[0].totalSales
+        : 0;
+
+    return res.status(200).json({
+      success: true,
+
+      data: {
+        totalOrders,
+
+        pendingOrders,
+
+        confirmedOrders,
+
+        processingOrders,
+
+        shippedOrders,
+
+        outForDeliveryOrders,
+
+        deliveredOrders,
+
+        cancelledOrders,
+
+        returnedOrders,
+
+        totalSales
+      }
+    });
+
+  } catch (error) {
+
+    console.error(
+      'Get order stats error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      error:
+        error.message ||
+        'Failed to fetch order statistics'
+    });
+  }
+};
+
+// ==============================
+// EXPORTS
+// ==============================
+
+module.exports = {
+  createOrder:
+    exports.createOrder,
+
+  getAllOrders:
+    exports.getAllOrders,
+
+  getOrderById:
+    exports.getOrderById,
+
+  updateOrderStatus:
+    exports.updateOrderStatus,
+
+  cancelOrder:
+    exports.cancelOrder,
+
+  returnOrder:
+    exports.returnOrder,
+
+  getOrderStats:
+    exports.getOrderStats
 };
