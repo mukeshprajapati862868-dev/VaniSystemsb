@@ -1,265 +1,172 @@
+const Gallery = require("../models/Gallery");
 const fs = require("fs");
 const path = require("path");
-const Gallery = require("../models/Gallery");
-
 
 // ============================================================
-// UPLOAD GALLERY IMAGE
+// UPLOAD IMAGE FROM BASE64 DATA URL
 // ============================================================
-
-const uploadFromDataUrl = async (req, res) => {
+exports.uploadFromDataUrl = async (req, res) => {
   try {
-
-    const { name, dataUrl } = req.body;
-
+    const { name, dataUrl } = req.body || {};
 
     // --------------------------------------------------------
-    // VALIDATE NAME
+    // VALIDATION
     // --------------------------------------------------------
-
-    if (!name) {
+    if (!name || !dataUrl) {
       return res.status(400).json({
         success: false,
-        error: "Image name is required"
+        error: "Name and dataUrl are required",
       });
     }
 
-
     // --------------------------------------------------------
-    // VALIDATE DATA URL
+    // PARSE BASE64 DATA URL
+    // Supports:
+    // PNG / JPEG / JPG / WEBP
     // --------------------------------------------------------
-
-    if (!dataUrl) {
-      return res.status(400).json({
-        success: false,
-        error: "Image data is required"
-      });
-    }
-
-
-    if (typeof dataUrl !== "string") {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid image data"
-      });
-    }
-
-
-    // --------------------------------------------------------
-    // CHECK IMAGE FORMAT
-    // --------------------------------------------------------
-
-    const match = dataUrl.match(
-      /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i
+    const matches = String(dataUrl).match(
+      /^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/i
     );
 
-
-    if (!match) {
+    if (!matches) {
       return res.status(400).json({
         success: false,
-        error:
-          "Invalid image format. Only PNG, JPG, JPEG and WEBP are allowed."
+        error: "Invalid image data",
       });
     }
 
+    const mimeType = matches[1].toLowerCase();
+    const base64Data = matches[2];
 
-    const extension = match[1].toLowerCase();
+    // --------------------------------------------------------
+    // GET FILE EXTENSION
+    // --------------------------------------------------------
+    let ext = "jpg";
 
-    const base64Data = match[2];
+    if (mimeType === "image/png") {
+      ext = "png";
+    } else if (mimeType === "image/jpeg") {
+      ext = "jpeg";
+    } else if (mimeType === "image/jpg") {
+      ext = "jpg";
+    } else if (mimeType === "image/webp") {
+      ext = "webp";
+    }
 
+    // --------------------------------------------------------
+    // SAFE FILE NAME
+    // --------------------------------------------------------
+    const safeName = String(name)
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]/g, "-")
+      .replace(/-+/g, "-");
+
+    const filename =
+      Date.now() +
+      "-" +
+      safeName +
+      "." +
+      ext;
 
     // --------------------------------------------------------
     // UPLOAD DIRECTORY
     // --------------------------------------------------------
-
-    const uploadDirectory = path.join(
+    const uploadDir = path.join(
       __dirname,
       "..",
       "uploads",
       "gallery"
     );
 
-
-    fs.mkdirSync(
-      uploadDirectory,
-      {
-        recursive: true
-      }
-    );
-
+    // Create folder if not exists
+    fs.mkdirSync(uploadDir, {
+      recursive: true,
+    });
 
     // --------------------------------------------------------
-    // SAFE FILE NAME
+    // FILE PATH
     // --------------------------------------------------------
-
-    const safeName = String(name)
-      .replace(/\.[^/.]+$/, "")
-      .replace(/[^a-zA-Z0-9-_]/g, "_")
-      .substring(0, 100);
-
-
-    const filename =
-      `${safeName || "gallery"}_${Date.now()}.${extension}`;
-
-
     const filePath = path.join(
-      uploadDirectory,
+      uploadDir,
       filename
     );
 
-
     // --------------------------------------------------------
-    // BASE64 → BUFFER
+    // WRITE FILE
     // --------------------------------------------------------
-
-    let imageBuffer;
-
-    try {
-
-      imageBuffer = Buffer.from(
-        base64Data,
-        "base64"
-      );
-
-    } catch (bufferError) {
-
-      console.error(
-        "IMAGE BUFFER ERROR:",
-        bufferError
-      );
-
-      return res.status(400).json({
-        success: false,
-        error: "Invalid Base64 image data"
-      });
-    }
-
-
-    // --------------------------------------------------------
-    // CHECK EMPTY IMAGE
-    // --------------------------------------------------------
-
-    if (
-      !imageBuffer ||
-      imageBuffer.length === 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        error: "Image data is empty"
-      });
-    }
-
-
-    // --------------------------------------------------------
-    // SAVE ACTUAL IMAGE FILE
-    // --------------------------------------------------------
-
     fs.writeFileSync(
       filePath,
-      imageBuffer
+      Buffer.from(base64Data, "base64")
     );
-
 
     // --------------------------------------------------------
     // PUBLIC IMAGE PATH
     // --------------------------------------------------------
-
     const imagePath =
       `/uploads/gallery/${filename}`;
 
+    // --------------------------------------------------------
+    // SAVE DATA IN MONGODB
+    // --------------------------------------------------------
+    const gallery = await Gallery.create({
+      name: String(name).trim(),
+      filename,
+      path: imagePath,
+    });
 
     // --------------------------------------------------------
-    // SAVE IMAGE INFORMATION IN MONGODB
+    // RESPONSE
     // --------------------------------------------------------
-
-    const galleryImage =
-      await Gallery.create({
-        name: String(name).trim(),
-        filename,
-        path: imagePath
-      });
-
-
-    // --------------------------------------------------------
-    // SUCCESS RESPONSE
-    // --------------------------------------------------------
-
     return res.status(201).json({
       success: true,
       message: "Gallery image uploaded successfully",
-      data: galleryImage
+      data: gallery,
     });
-
-
   } catch (error) {
-
     console.error(
-      "================================================"
-    );
-
-    console.error(
-      "GALLERY UPLOAD ERROR:"
-    );
-
-    console.error(error);
-
-    console.error(
-      "================================================"
-    );
-
-
-    return res.status(500).json({
-      success: false,
-      error:
-        error.message ||
-        "Gallery image upload failed"
-    });
-  }
-};
-
-
-
-// ============================================================
-// GET GALLERY IMAGES
-// ============================================================
-
-const getGalleryImages = async (req, res) => {
-
-  try {
-
-    const images = await Gallery.find()
-      .sort({
-        createdAt: -1
-      })
-      .lean();
-
-
-    return res.status(200).json({
-      success: true,
-      data: images
-    });
-
-
-  } catch (error) {
-
-    console.error(
-      "GET GALLERY ERROR:",
+      "Gallery upload error:",
       error
     );
 
+    return res.status(500).json({
+      success: false,
+      error:
+        error.message ||
+        "Server error",
+    });
+  }
+};
+
+// ============================================================
+// GET ALL GALLERY IMAGES
+// ============================================================
+exports.getGalleryImages = async (
+  req,
+  res
+) => {
+  try {
+    const galleryImages =
+      await Gallery.find()
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: galleryImages,
+    });
+  } catch (error) {
+    console.error(
+      "Get gallery images error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
       error:
         error.message ||
-        "Failed to load gallery images"
+        "Server error",
     });
   }
-};
-
-
-
-module.exports = {
-  uploadFromDataUrl,
-  getGalleryImages
 };
