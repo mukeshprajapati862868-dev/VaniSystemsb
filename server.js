@@ -37,6 +37,21 @@ const galleryRoutes = require('./Routes/gallery');
 
 // Initialize Express app
 const app = express();
+
+// ============================================================
+// PLESK / IIS REVERSE PROXY FIX
+// ============================================================
+// Plesk/IIS reverse proxy ke peeche Express ko proxy trust karna
+// zaroori hai, especially express-rate-limit ke liye.
+app.set('trust proxy', 1);
+
+// ============================================================
+// ADDITIONAL SAFE IP FALLBACK FOR PLESK / IIS
+// ============================================================
+// Kuch Plesk/IIS configurations mein req.ip undefined aa sakta hai.
+// Isliye rate limiter ke liye safe IP fallback use kiya ja raha hai.
+app.set('trust proxy', true);
+
 const httpServer = createServer(app);
 
 // Fallback storage
@@ -189,6 +204,48 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+
+  // ============================================================
+  // PLESK / IIS IP FIX
+  // ============================================================
+  // req.ip undefined hone par fallback headers/socket se IP lega.
+  keyGenerator: (req) => {
+    try {
+      const forwardedFor = req.headers['x-forwarded-for'];
+
+      if (forwardedFor) {
+        const firstIp = String(forwardedFor)
+          .split(',')[0]
+          .trim();
+
+        if (firstIp) {
+          return firstIp;
+        }
+      }
+
+      if (req.ip) {
+        return req.ip;
+      }
+
+      if (req.socket && req.socket.remoteAddress) {
+        return req.socket.remoteAddress;
+      }
+
+      if (req.connection && req.connection.remoteAddress) {
+        return req.connection.remoteAddress;
+      }
+
+      return 'unknown-client';
+    } catch (error) {
+      console.error(
+        'Rate limiter IP detection error:',
+        error.message
+      );
+
+      return 'unknown-client';
+    }
+  },
+
   skip: (req) => {
     return req.path === '/health' || req.path === '/api/health';
   }
@@ -342,6 +399,8 @@ const startServer = async () => {
       console.log(`🌐 Plesk Frontend: https://rishabh.vanisystems.in`);
       console.log(`🌐 CORS: ALL ORIGINS ENABLED`);
       console.log(`🔌 Socket.IO: ENABLED`);
+      console.log(`🔒 Proxy Trust: ENABLED`);
+      console.log(`🛡️ Rate Limiter: PLESK SAFE MODE ENABLED`);
       console.log('====================================================');
       console.log('');
     });
