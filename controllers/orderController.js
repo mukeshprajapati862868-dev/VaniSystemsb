@@ -1119,7 +1119,6 @@
 
 
 
-
 // ==============================
 // controllers/orderController.js
 // ==============================
@@ -1251,13 +1250,11 @@ exports.createOrder = async (req, res) => {
 
     const order = await Order.create(orderData);
 
-    // SOCKET.IO ADMIN NOTIFICATION
     const io = req.app.get('io');
     if (io) {
       io.to('admin-room').emit('new-order', order);
     }
 
-    // USER NOTIFICATION
     await createAndSendNotification(req.app, {
       userId: req.user._id || req.user.id,
       userEmail: targetEmail,
@@ -1333,7 +1330,6 @@ exports.getOrderById = async (req, res) => {
       });
     }
 
-    // Fixed: orderId se find kar rahe hain (custom ID)
     const order = await Order.findOne({ orderId: req.params.id });
 
     if (!order) {
@@ -1383,6 +1379,24 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
+    // Normalize status (case-insensitive)
+    const normalizedStatus = String(status).trim().toLowerCase();
+
+    const statusMap = {
+      'pending': 'Pending',
+      'confirmed': 'Confirmed',
+      'processing': 'Processing',
+      'shipped': 'Shipped',
+      'out for delivery': 'Out for Delivery',
+      'outfordelivery': 'Out for Delivery',
+      'delivered': 'Delivered',
+      'cancelled': 'Cancelled',
+      'canceled': 'Cancelled',
+      'returned': 'Returned'
+    };
+
+    const finalStatus = statusMap[normalizedStatus] || status.trim();
+
     const allowedStatuses = [
       'Pending',
       'Confirmed',
@@ -1394,16 +1408,13 @@ exports.updateOrderStatus = async (req, res) => {
       'Returned'
     ];
 
-    const normalizedStatus = String(status).trim();
-
-    if (!allowedStatuses.includes(normalizedStatus)) {
+    if (!allowedStatuses.includes(finalStatus)) {
       return res.status(400).json({
         success: false,
         error: `Invalid order status. Allowed statuses: ${allowedStatuses.join(', ')}`
       });
     }
 
-    // Fixed: orderId se find kar rahe hain (custom ID)
     const order = await Order.findOne({ orderId: req.params.id });
 
     if (!order) {
@@ -1413,16 +1424,16 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
-    order.status = normalizedStatus;
+    order.status = finalStatus;
 
     if (!Array.isArray(order.timeline)) {
       order.timeline = [];
     }
 
     order.timeline.push({
-      status: normalizedStatus,
+      status: finalStatus,
       date: new Date().toLocaleString(),
-      remarks: remarks || `Order status changed to ${normalizedStatus}`,
+      remarks: remarks || `Order status changed to ${finalStatus}`,
       adminName: req.user?.name || req.user?.email || 'Admin'
     });
 
@@ -1441,7 +1452,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     order.tracking.trackingHistory.push({
-      status: normalizedStatus,
+      status: finalStatus,
       location: order.tracking.currentLocation || 'Processing Center',
       date: new Date().toLocaleString(),
       time: new Date().toLocaleTimeString()
@@ -1481,7 +1492,6 @@ exports.cancelOrder = async (req, res) => {
       });
     }
 
-    // Fixed: orderId se find kar rahe hain
     const order = await Order.findOne({ orderId: req.params.id });
 
     if (!order) {
@@ -1582,7 +1592,6 @@ exports.returnOrder = async (req, res) => {
       });
     }
 
-    // Fixed: orderId se find kar rahe hain
     const order = await Order.findOne({ orderId: req.params.id });
 
     if (!order) {
