@@ -38,19 +38,12 @@ const galleryRoutes = require('./Routes/gallery');
 // Initialize Express app
 const app = express();
 
-// ============================================================
-// PLESK / IIS REVERSE PROXY FIX
-// ============================================================
-// Plesk/IIS reverse proxy ke peeche Express ko proxy trust karna
-// zaroori hai, especially express-rate-limit ke liye.
+// ==================== PLESK / PROXY FIX ====================
+// IMPORTANT:
+// Plesk/IIS/Reverse Proxy ke peeche Express ko real client IP
+// identify karne ke liye trust proxy enable karna zaroori hai.
 app.set('trust proxy', 1);
-
 // ============================================================
-// ADDITIONAL SAFE IP FALLBACK FOR PLESK / IIS
-// ============================================================
-// Kuch Plesk/IIS configurations mein req.ip undefined aa sakta hai.
-// Isliye rate limiter ke liye safe IP fallback use kiya ja raha hai.
-app.set('trust proxy', true);
 
 const httpServer = createServer(app);
 
@@ -67,6 +60,7 @@ const uploadsRoot = path.join(__dirname, 'uploads');
 try {
   fs.mkdirSync(path.join(uploadsRoot, 'candidates'), { recursive: true });
   fs.mkdirSync(path.join(uploadsRoot, 'gallery'), { recursive: true });
+
   console.log('Uploads directories initialized successfully.');
 } catch (e) {
   console.error('Uploads folder initialization error:', e.message);
@@ -94,7 +88,11 @@ const corsOptions = {
     'X-Access-Token',
     'X-Auth-Token'
   ],
-  exposedHeaders: ['Content-Length', 'Content-Type', 'Authorization'],
+  exposedHeaders: [
+    'Content-Length',
+    'Content-Type',
+    'Authorization'
+  ],
   optionsSuccessStatus: 204,
   preflightContinue: false
 };
@@ -108,7 +106,15 @@ const io = new Server(httpServer, {
   cors: {
     origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    methods: [
+      'GET',
+      'POST',
+      'PUT',
+      'DELETE',
+      'PATCH',
+      'OPTIONS',
+      'HEAD'
+    ],
     allowedHeaders: [
       'Origin',
       'X-Requested-With',
@@ -131,6 +137,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
+
         styleSrc: [
           "'self'",
           "'unsafe-inline'",
@@ -138,6 +145,7 @@ app.use(
           'https://cdn.jsdelivr.net',
           'https://fonts.googleapis.com'
         ],
+
         scriptSrc: [
           "'self'",
           "'unsafe-inline'",
@@ -145,6 +153,7 @@ app.use(
           'https://jsdelivr.net',
           'https://cdn.jsdelivr.net'
         ],
+
         imgSrc: [
           "'self'",
           'data:',
@@ -153,6 +162,7 @@ app.use(
           'http:',
           'https://unsplash.com'
         ],
+
         connectSrc: [
           "'self'",
           'https://rishabh.vanisystems.in',
@@ -173,6 +183,7 @@ app.use(
           'ws:',
           'wss:'
         ],
+
         fontSrc: [
           "'self'",
           'data:',
@@ -180,74 +191,66 @@ app.use(
           'https://fonts.gstatic.com',
           'https://gstatic.com'
         ],
+
         objectSrc: ["'none'"],
-        mediaSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],
-        frameSrc: ["'self'", 'https://razorpay.com', 'https://api.razorpay.com'],
+
+        mediaSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https:',
+          'http:'
+        ],
+
+        frameSrc: [
+          "'self'",
+          'https://razorpay.com',
+          'https://api.razorpay.com'
+        ],
+
         frameAncestors: ["'self'"],
+
         baseUri: ["'self'"],
+
         formAction: ["'self'"]
       }
     },
+
     crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: 'cross-origin' }
+
+    crossOriginResourcePolicy: {
+      policy: 'cross-origin'
+    }
   })
 );
 
 // ================================================================
 // RATE LIMITING
 // ================================================================
+
+// IMPORTANT:
+// DO NOT ADD CUSTOM keyGenerator HERE.
+// express-rate-limit ka default IP handling IPv4/IPv6 safe hai.
+// Plesk ke liye upar app.set('trust proxy', 1) already configured hai.
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   max: 5000,
+
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },
+
   standardHeaders: true,
+
   legacyHeaders: false,
 
-  // ============================================================
-  // PLESK / IIS IP FIX
-  // ============================================================
-  // req.ip undefined hone par fallback headers/socket se IP lega.
-  keyGenerator: (req) => {
-    try {
-      const forwardedFor = req.headers['x-forwarded-for'];
-
-      if (forwardedFor) {
-        const firstIp = String(forwardedFor)
-          .split(',')[0]
-          .trim();
-
-        if (firstIp) {
-          return firstIp;
-        }
-      }
-
-      if (req.ip) {
-        return req.ip;
-      }
-
-      if (req.socket && req.socket.remoteAddress) {
-        return req.socket.remoteAddress;
-      }
-
-      if (req.connection && req.connection.remoteAddress) {
-        return req.connection.remoteAddress;
-      }
-
-      return 'unknown-client';
-    } catch (error) {
-      console.error(
-        'Rate limiter IP detection error:',
-        error.message
-      );
-
-      return 'unknown-client';
-    }
-  },
-
   skip: (req) => {
-    return req.path === '/health' || req.path === '/api/health';
+    return (
+      req.path === '/health' ||
+      req.path === '/api/health'
+    );
   }
 });
 
@@ -256,8 +259,18 @@ app.use('/api/', limiter);
 // ================================================================
 // BODY PARSING MIDDLEWARE
 // ================================================================
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(
+  express.json({
+    limit: '50mb'
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: '50mb'
+  })
+);
 
 // ================================================================
 // COOKIE PARSER
@@ -286,12 +299,15 @@ io.on('connection', (socket) => {
 
   socket.on('join-user-room', (userId) => {
     if (!userId) return;
+
     socket.join(`user-${userId}`);
+
     console.log(`User ${userId} joined their room`);
   });
 
   socket.on('join-admin-room', () => {
     socket.join('admin-room');
+
     console.log('Admin joined admin room');
   });
 
@@ -329,19 +345,37 @@ app.get('/health', (req, res) => {
 // ==================== API ROUTES ================================
 // ================================================================
 app.use('/api/auth', authRoutes);
-app.use('/api/admin', require('./Routes/adminRoutes'));
+
+app.use(
+  '/api/admin',
+  require('./Routes/adminRoutes')
+);
+
 app.use('/api/users', userRoutes);
+
 app.use('/api/products', productRoutes);
+
 app.use('/api/orders', orderRoutes);
+
 app.use('/api/payments', paymentRoutes);
+
 app.use('/api/cart', cartRoutes);
+
 app.use('/api/wishlist', wishlistRoutes);
+
 app.use('/api/addresses', addressRoutes);
+
 app.use('/api/notifications', notificationRoutes);
+
 app.use('/api/coupons', couponRoutes);
+
 app.use('/api/dashboard', dashboardRoutes);
+
 app.use('/api/candidates', candidateRoutes);
+
+// ==================== GALLERY ROUTE ====================
 app.use('/api/gallery', galleryRoutes);
+// =========================================================
 
 // ================================================================
 // HEALTH CHECK ENDPOINT
@@ -360,9 +394,11 @@ app.get('/api/health', (req, res) => {
 // ERROR MIDDLEWARE
 // ================================================================
 const errorHandler = require('./middleware/errorHandler');
+
 const notFound = require('./middleware/notFound');
 
 app.use(notFound);
+
 app.use(errorHandler);
 
 // ================================================================
@@ -374,38 +410,114 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log('');
-      console.log('====================================================');
-      console.log('🚀 VANI SYSTEMS BACKEND SERVER STARTED');
-      console.log('====================================================');
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🌐 Root route: /`);
-      console.log(`❤️ Health route: /api/health`);
-      console.log(`🔐 Auth routes mounted at /api/auth`);
-      console.log(`👤 User routes mounted at /api/users`);
-      console.log(`📦 Product routes mounted at /api/products`);
-      console.log(`🛒 Order routes mounted at /api/orders`);
-      console.log(`💳 Payment routes mounted at /api/payments`);
-      console.log(`🛍️ Cart routes mounted at /api/cart`);
-      console.log(`❤️ Wishlist routes mounted at /api/wishlist`);
-      console.log(`📍 Address routes mounted at /api/addresses`);
-      console.log(`🔔 Notification routes mounted at /api/notifications`);
-      console.log(`🎟️ Coupon routes mounted at /api/coupons`);
-      console.log(`📊 Dashboard routes mounted at /api/dashboard`);
-      console.log(`👨‍🎓 Candidate routes mounted at /api/candidates`);
-      console.log(`🖼️ Gallery routes mounted at /api/gallery`);
-      console.log(`📁 Uploads served from /uploads`);
-      console.log(`🌐 Plesk Frontend: https://rishabh.vanisystems.in`);
-      console.log(`🌐 CORS: ALL ORIGINS ENABLED`);
-      console.log(`🔌 Socket.IO: ENABLED`);
-      console.log(`🔒 Proxy Trust: ENABLED`);
-      console.log(`🛡️ Rate Limiter: PLESK SAFE MODE ENABLED`);
-      console.log('====================================================');
-      console.log('');
-    });
+    httpServer.listen(
+      PORT,
+      '0.0.0.0',
+      () => {
+        console.log('');
+        console.log(
+          '===================================================='
+        );
+        console.log(
+          '🚀 VANI SYSTEMS BACKEND SERVER STARTED'
+        );
+        console.log(
+          '===================================================='
+        );
+
+        console.log(
+          `🚀 Server running on port ${PORT}`
+        );
+
+        console.log(
+          `🌐 Root route: /`
+        );
+
+        console.log(
+          `❤️ Health route: /api/health`
+        );
+
+        console.log(
+          `🔐 Auth routes mounted at /api/auth`
+        );
+
+        console.log(
+          `👤 User routes mounted at /api/users`
+        );
+
+        console.log(
+          `📦 Product routes mounted at /api/products`
+        );
+
+        console.log(
+          `🛒 Order routes mounted at /api/orders`
+        );
+
+        console.log(
+          `💳 Payment routes mounted at /api/payments`
+        );
+
+        console.log(
+          `🛍️ Cart routes mounted at /api/cart`
+        );
+
+        console.log(
+          `❤️ Wishlist routes mounted at /api/wishlist`
+        );
+
+        console.log(
+          `📍 Address routes mounted at /api/addresses`
+        );
+
+        console.log(
+          `🔔 Notification routes mounted at /api/notifications`
+        );
+
+        console.log(
+          `🎟️ Coupon routes mounted at /api/coupons`
+        );
+
+        console.log(
+          `📊 Dashboard routes mounted at /api/dashboard`
+        );
+
+        console.log(
+          `👨‍🎓 Candidate routes mounted at /api/candidates`
+        );
+
+        console.log(
+          `🖼️ Gallery routes mounted at /api/gallery`
+        );
+
+        console.log(
+          `📁 Uploads served from /uploads`
+        );
+
+        console.log(
+          `🌐 Plesk Frontend: https://rishabh.vanisystems.in`
+        );
+
+        console.log(
+          `🌐 CORS: ALL ORIGINS ENABLED`
+        );
+
+        console.log(
+          `🔌 Socket.IO: ENABLED`
+        );
+
+        console.log(
+          '===================================================='
+        );
+
+        console.log('');
+      }
+    );
   } catch (error) {
-    console.error('❌ Server startup failed:', error.message);
+    console.error(
+      '❌ Server startup failed:',
+      error.message
+    );
+
     process.exit(1);
   }
 };
@@ -414,15 +526,23 @@ const startServer = async () => {
 // HANDLE UNHANDLED PROMISE REJECTIONS
 // ================================================================
 process.on('unhandledRejection', (err) => {
-  console.error(`Unhandled Rejection: ${err.message}`);
-  httpServer.close(() => process.exit(1));
+  console.error(
+    `Unhandled Rejection: ${err.message}`
+  );
+
+  httpServer.close(
+    () => process.exit(1)
+  );
 });
 
 // ================================================================
 // HANDLE UNCAUGHT EXCEPTIONS
 // ================================================================
 process.on('uncaughtException', (err) => {
-  console.error(`Uncaught Exception: ${err.message}`);
+  console.error(
+    `Uncaught Exception: ${err.message}`
+  );
+
   process.exit(1);
 });
 
