@@ -37,15 +37,13 @@ const galleryRoutes = require('./Routes/gallery');
 
 // Initialize Express app
 const app = express();
-
-// ==================== PLESK / PROXY FIX ====================
-// IMPORTANT:
-// Plesk/IIS/Reverse Proxy ke peeche Express ko real client IP
-// identify karne ke liye trust proxy enable karna zaroori hai.
-app.set('trust proxy', 1);
-// ============================================================
-
 const httpServer = createServer(app);
+
+// ==================== TRUST PROXY ====================
+// Required when backend is running behind Plesk / reverse proxy.
+// This allows express-rate-limit to correctly read req.ip.
+app.set('trust proxy', 1);
+// =====================================================
 
 // Fallback storage
 app.set('db', {
@@ -62,20 +60,55 @@ try {
   fs.mkdirSync(path.join(uploadsRoot, 'gallery'), { recursive: true });
 
   console.log('Uploads directories initialized successfully.');
+  console.log(`Uploads root: ${uploadsRoot}`);
 } catch (e) {
   console.error('Uploads folder initialization error:', e.message);
 }
 
-// Serve uploaded files publicly
+// ================================================================
+// SERVE UPLOADED FILES PUBLICLY
+// ================================================================
+
+// Normal uploads URL
+// Example:
+// https://api-rishabh.vanisystems.in/uploads/gallery/image.jpg
 app.use('/uploads', express.static(uploadsRoot));
+
+// IMPORTANT:
+// Your existing frontend GalleryContext builds:
+//
+// API_BASE_URL + item.path
+//
+// API_BASE_URL:
+// https://api-rishabh.vanisystems.in/api
+//
+// If backend returns:
+// /uploads/gallery/image.jpg
+//
+// frontend creates:
+// https://api-rishabh.vanisystems.in/api/uploads/gallery/image.jpg
+//
+// Therefore we also expose uploads through /api/uploads.
+app.use('/api/uploads', express.static(uploadsRoot));
 
 // ================================================================
 // ==================== CORS CONFIGURATION ========================
 // ================================================================
+
 const corsOptions = {
   origin: true,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+
+  methods: [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS',
+    'HEAD'
+  ],
+
   allowedHeaders: [
     'Origin',
     'X-Requested-With',
@@ -88,11 +121,13 @@ const corsOptions = {
     'X-Access-Token',
     'X-Auth-Token'
   ],
+
   exposedHeaders: [
     'Content-Length',
     'Content-Type',
     'Authorization'
   ],
+
   optionsSuccessStatus: 204,
   preflightContinue: false
 };
@@ -102,10 +137,12 @@ app.use(cors(corsOptions));
 // ================================================================
 // SOCKET.IO SETUP
 // ================================================================
+
 const io = new Server(httpServer, {
   cors: {
     origin: true,
     credentials: true,
+
     methods: [
       'GET',
       'POST',
@@ -115,6 +152,7 @@ const io = new Server(httpServer, {
       'OPTIONS',
       'HEAD'
     ],
+
     allowedHeaders: [
       'Origin',
       'X-Requested-With',
@@ -132,6 +170,7 @@ app.set('io', io);
 // ================================================================
 // SECURITY MIDDLEWARE
 // ================================================================
+
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -166,6 +205,7 @@ app.use(
         connectSrc: [
           "'self'",
           'https://rishabh.vanisystems.in',
+          'https://api-rishabh.vanisystems.in',
           'https://vani-systems-ouit.vercel.app',
           'https://*.vercel.app',
           'https://vanisystemsb-1.onrender.com',
@@ -229,10 +269,8 @@ app.use(
 // ================================================================
 
 // IMPORTANT:
-// DO NOT ADD CUSTOM keyGenerator HERE.
-// express-rate-limit ka default IP handling IPv4/IPv6 safe hai.
-// Plesk ke liye upar app.set('trust proxy', 1) already configured hai.
-
+// No custom keyGenerator is used here.
+// express-rate-limit will use its safe built-in IP handling.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
 
@@ -259,6 +297,13 @@ app.use('/api/', limiter);
 // ================================================================
 // BODY PARSING MIDDLEWARE
 // ================================================================
+
+// Required for Gallery base64 image upload.
+// Frontend sends:
+// {
+//   name: "...",
+//   dataUrl: "data:image/jpeg;base64,..."
+// }
 app.use(
   express.json({
     limit: '50mb'
@@ -275,16 +320,19 @@ app.use(
 // ================================================================
 // COOKIE PARSER
 // ================================================================
+
 app.use(cookieParser());
 
 // ================================================================
 // COMPRESSION
 // ================================================================
+
 app.use(compression());
 
 // ================================================================
 // LOGGING
 // ================================================================
+
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
@@ -294,6 +342,7 @@ if (process.env.NODE_ENV === 'development') {
 // ================================================================
 // SOCKET.IO CONNECTION HANDLING
 // ================================================================
+
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
@@ -302,7 +351,9 @@ io.on('connection', (socket) => {
 
     socket.join(`user-${userId}`);
 
-    console.log(`User ${userId} joined their room`);
+    console.log(
+      `User ${userId} joined their room`
+    );
   });
 
   socket.on('join-admin-room', () => {
@@ -312,90 +363,160 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
+    console.log(
+      `User disconnected: ${socket.id}`
+    );
   });
 });
 
 // ================================================================
 // ROOT ROUTE
 // ================================================================
+
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
     status: 'online',
-    message: 'Vani Systems Backend API is running successfully.',
-    frontend: 'https://rishabh.vanisystems.in',
-    timestamp: new Date().toISOString()
+
+    message:
+      'Vani Systems Backend API is running successfully.',
+
+    frontend:
+      'https://rishabh.vanisystems.in',
+
+    timestamp:
+      new Date().toISOString()
   });
 });
 
 // ================================================================
 // BASIC HEALTH ROUTE
 // ================================================================
+
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
     status: 'online',
-    message: 'Vani Systems Backend is running',
-    timestamp: new Date().toISOString()
+
+    message:
+      'Vani Systems Backend is running',
+
+    timestamp:
+      new Date().toISOString()
   });
 });
 
 // ================================================================
 // ==================== API ROUTES ================================
 // ================================================================
-app.use('/api/auth', authRoutes);
+
+app.use(
+  '/api/auth',
+  authRoutes
+);
 
 app.use(
   '/api/admin',
   require('./Routes/adminRoutes')
 );
 
-app.use('/api/users', userRoutes);
+app.use(
+  '/api/users',
+  userRoutes
+);
 
-app.use('/api/products', productRoutes);
+app.use(
+  '/api/products',
+  productRoutes
+);
 
-app.use('/api/orders', orderRoutes);
+app.use(
+  '/api/orders',
+  orderRoutes
+);
 
-app.use('/api/payments', paymentRoutes);
+app.use(
+  '/api/payments',
+  paymentRoutes
+);
 
-app.use('/api/cart', cartRoutes);
+app.use(
+  '/api/cart',
+  cartRoutes
+);
 
-app.use('/api/wishlist', wishlistRoutes);
+app.use(
+  '/api/wishlist',
+  wishlistRoutes
+);
 
-app.use('/api/addresses', addressRoutes);
+app.use(
+  '/api/addresses',
+  addressRoutes
+);
 
-app.use('/api/notifications', notificationRoutes);
+app.use(
+  '/api/notifications',
+  notificationRoutes
+);
 
-app.use('/api/coupons', couponRoutes);
+app.use(
+  '/api/coupons',
+  couponRoutes
+);
 
-app.use('/api/dashboard', dashboardRoutes);
+app.use(
+  '/api/dashboard',
+  dashboardRoutes
+);
 
-app.use('/api/candidates', candidateRoutes);
+app.use(
+  '/api/candidates',
+  candidateRoutes
+);
 
-// ==================== GALLERY ROUTE ====================
-app.use('/api/gallery', galleryRoutes);
-// =========================================================
+// ================================================================
+// GALLERY ROUTES
+// ================================================================
+//
+// POST /api/gallery/upload
+// GET  /api/gallery
+//
+app.use(
+  '/api/gallery',
+  galleryRoutes
+);
 
 // ================================================================
 // HEALTH CHECK ENDPOINT
 // ================================================================
+
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'success',
-    message: 'Server is running',
-    frontend: 'https://rishabh.vanisystems.in',
+
+    message:
+      'Server is running',
+
+    frontend:
+      'https://rishabh.vanisystems.in',
+
     cors: 'enabled',
-    timestamp: new Date().toISOString()
+
+    timestamp:
+      new Date().toISOString()
   });
 });
 
 // ================================================================
 // ERROR MIDDLEWARE
 // ================================================================
-const errorHandler = require('./middleware/errorHandler');
 
-const notFound = require('./middleware/notFound');
+const errorHandler =
+  require('./middleware/errorHandler');
+
+const notFound =
+  require('./middleware/notFound');
 
 app.use(notFound);
 
@@ -404,23 +525,30 @@ app.use(errorHandler);
 // ================================================================
 // START SERVER
 // ================================================================
-const PORT = process.env.PORT || 5000;
+
+const PORT =
+  process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    // Connect MongoDB
     await connectDB();
 
+    // Start HTTP server
     httpServer.listen(
       PORT,
       '0.0.0.0',
       () => {
         console.log('');
+
         console.log(
           '===================================================='
         );
+
         console.log(
           '🚀 VANI SYSTEMS BACKEND SERVER STARTED'
         );
+
         console.log(
           '===================================================='
         );
@@ -494,6 +622,10 @@ const startServer = async () => {
         );
 
         console.log(
+          `📁 Uploads also served from /api/uploads`
+        );
+
+        console.log(
           `🌐 Plesk Frontend: https://rishabh.vanisystems.in`
         );
 
@@ -512,7 +644,9 @@ const startServer = async () => {
         console.log('');
       }
     );
+
   } catch (error) {
+
     console.error(
       '❌ Server startup failed:',
       error.message
@@ -525,35 +659,47 @@ const startServer = async () => {
 // ================================================================
 // HANDLE UNHANDLED PROMISE REJECTIONS
 // ================================================================
-process.on('unhandledRejection', (err) => {
-  console.error(
-    `Unhandled Rejection: ${err.message}`
-  );
 
-  httpServer.close(
-    () => process.exit(1)
-  );
-});
+process.on(
+  'unhandledRejection',
+  (err) => {
+
+    console.error(
+      `Unhandled Rejection: ${err.message}`
+    );
+
+    httpServer.close(
+      () => process.exit(1)
+    );
+  }
+);
 
 // ================================================================
 // HANDLE UNCAUGHT EXCEPTIONS
 // ================================================================
-process.on('uncaughtException', (err) => {
-  console.error(
-    `Uncaught Exception: ${err.message}`
-  );
 
-  process.exit(1);
-});
+process.on(
+  'uncaughtException',
+  (err) => {
+
+    console.error(
+      `Uncaught Exception: ${err.message}`
+    );
+
+    process.exit(1);
+  }
+);
 
 // ================================================================
 // START
 // ================================================================
+
 startServer();
 
 // ================================================================
 // EXPORT
 // ================================================================
+
 module.exports = {
   app,
   io
