@@ -1,172 +1,265 @@
-const Gallery = require("../models/Gallery");
 const fs = require("fs");
 const path = require("path");
+const Gallery = require("../models/Gallery");
+
 
 // ============================================================
-// UPLOAD IMAGE FROM BASE64 DATA URL
+// UPLOAD GALLERY IMAGE
 // ============================================================
-exports.uploadFromDataUrl = async (req, res) => {
+
+const uploadFromDataUrl = async (req, res) => {
   try {
-    const { name, dataUrl } = req.body || {};
+
+    const { name, dataUrl } = req.body;
+
 
     // --------------------------------------------------------
-    // VALIDATION
+    // VALIDATE NAME
     // --------------------------------------------------------
-    if (!name || !dataUrl) {
+
+    if (!name) {
       return res.status(400).json({
         success: false,
-        error: "Name and dataUrl are required",
+        error: "Image name is required"
       });
     }
 
+
     // --------------------------------------------------------
-    // PARSE BASE64 DATA URL
-    // Supports:
-    // PNG / JPEG / JPG / WEBP
+    // VALIDATE DATA URL
     // --------------------------------------------------------
-    const matches = String(dataUrl).match(
-      /^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/i
+
+    if (!dataUrl) {
+      return res.status(400).json({
+        success: false,
+        error: "Image data is required"
+      });
+    }
+
+
+    if (typeof dataUrl !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid image data"
+      });
+    }
+
+
+    // --------------------------------------------------------
+    // CHECK IMAGE FORMAT
+    // --------------------------------------------------------
+
+    const match = dataUrl.match(
+      /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i
     );
 
-    if (!matches) {
+
+    if (!match) {
       return res.status(400).json({
         success: false,
-        error: "Invalid image data",
+        error:
+          "Invalid image format. Only PNG, JPG, JPEG and WEBP are allowed."
       });
     }
 
-    const mimeType = matches[1].toLowerCase();
-    const base64Data = matches[2];
 
-    // --------------------------------------------------------
-    // GET FILE EXTENSION
-    // --------------------------------------------------------
-    let ext = "jpg";
+    const extension = match[1].toLowerCase();
 
-    if (mimeType === "image/png") {
-      ext = "png";
-    } else if (mimeType === "image/jpeg") {
-      ext = "jpeg";
-    } else if (mimeType === "image/jpg") {
-      ext = "jpg";
-    } else if (mimeType === "image/webp") {
-      ext = "webp";
-    }
+    const base64Data = match[2];
 
-    // --------------------------------------------------------
-    // SAFE FILE NAME
-    // --------------------------------------------------------
-    const safeName = String(name)
-      .trim()
-      .replace(/[^a-zA-Z0-9._-]/g, "-")
-      .replace(/-+/g, "-");
-
-    const filename =
-      Date.now() +
-      "-" +
-      safeName +
-      "." +
-      ext;
 
     // --------------------------------------------------------
     // UPLOAD DIRECTORY
     // --------------------------------------------------------
-    const uploadDir = path.join(
+
+    const uploadDirectory = path.join(
       __dirname,
       "..",
       "uploads",
       "gallery"
     );
 
-    // Create folder if not exists
-    fs.mkdirSync(uploadDir, {
-      recursive: true,
-    });
+
+    fs.mkdirSync(
+      uploadDirectory,
+      {
+        recursive: true
+      }
+    );
+
 
     // --------------------------------------------------------
-    // FILE PATH
+    // SAFE FILE NAME
     // --------------------------------------------------------
+
+    const safeName = String(name)
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-zA-Z0-9-_]/g, "_")
+      .substring(0, 100);
+
+
+    const filename =
+      `${safeName || "gallery"}_${Date.now()}.${extension}`;
+
+
     const filePath = path.join(
-      uploadDir,
+      uploadDirectory,
       filename
     );
 
+
     // --------------------------------------------------------
-    // WRITE FILE
+    // BASE64 → BUFFER
     // --------------------------------------------------------
+
+    let imageBuffer;
+
+    try {
+
+      imageBuffer = Buffer.from(
+        base64Data,
+        "base64"
+      );
+
+    } catch (bufferError) {
+
+      console.error(
+        "IMAGE BUFFER ERROR:",
+        bufferError
+      );
+
+      return res.status(400).json({
+        success: false,
+        error: "Invalid Base64 image data"
+      });
+    }
+
+
+    // --------------------------------------------------------
+    // CHECK EMPTY IMAGE
+    // --------------------------------------------------------
+
+    if (
+      !imageBuffer ||
+      imageBuffer.length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Image data is empty"
+      });
+    }
+
+
+    // --------------------------------------------------------
+    // SAVE ACTUAL IMAGE FILE
+    // --------------------------------------------------------
+
     fs.writeFileSync(
       filePath,
-      Buffer.from(base64Data, "base64")
+      imageBuffer
     );
+
 
     // --------------------------------------------------------
     // PUBLIC IMAGE PATH
     // --------------------------------------------------------
+
     const imagePath =
       `/uploads/gallery/${filename}`;
 
-    // --------------------------------------------------------
-    // SAVE DATA IN MONGODB
-    // --------------------------------------------------------
-    const gallery = await Gallery.create({
-      name: String(name).trim(),
-      filename,
-      path: imagePath,
-    });
 
     // --------------------------------------------------------
-    // RESPONSE
+    // SAVE IMAGE INFORMATION IN MONGODB
     // --------------------------------------------------------
+
+    const galleryImage =
+      await Gallery.create({
+        name: String(name).trim(),
+        filename,
+        path: imagePath
+      });
+
+
+    // --------------------------------------------------------
+    // SUCCESS RESPONSE
+    // --------------------------------------------------------
+
     return res.status(201).json({
       success: true,
       message: "Gallery image uploaded successfully",
-      data: gallery,
+      data: galleryImage
     });
+
+
   } catch (error) {
+
     console.error(
-      "Gallery upload error:",
-      error
+      "================================================"
     );
+
+    console.error(
+      "GALLERY UPLOAD ERROR:"
+    );
+
+    console.error(error);
+
+    console.error(
+      "================================================"
+    );
+
 
     return res.status(500).json({
       success: false,
       error:
         error.message ||
-        "Server error",
+        "Gallery image upload failed"
     });
   }
 };
 
+
+
 // ============================================================
-// GET ALL GALLERY IMAGES
+// GET GALLERY IMAGES
 // ============================================================
-exports.getGalleryImages = async (
-  req,
-  res
-) => {
+
+const getGalleryImages = async (req, res) => {
+
   try {
-    const galleryImages =
-      await Gallery.find()
-        .sort({
-          createdAt: -1,
-        })
-        .lean();
+
+    const images = await Gallery.find()
+      .sort({
+        createdAt: -1
+      })
+      .lean();
+
 
     return res.status(200).json({
       success: true,
-      data: galleryImages,
+      data: images
     });
+
+
   } catch (error) {
+
     console.error(
-      "Get gallery images error:",
+      "GET GALLERY ERROR:",
       error
     );
+
 
     return res.status(500).json({
       success: false,
       error:
         error.message ||
-        "Server error",
+        "Failed to load gallery images"
     });
   }
+};
+
+
+
+module.exports = {
+  uploadFromDataUrl,
+  getGalleryImages
 };
