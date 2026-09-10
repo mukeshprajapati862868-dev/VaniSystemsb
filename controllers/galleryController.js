@@ -55,16 +55,29 @@ exports.uploadFromDataUrl = async (req, res) => {
 
     // --------------------------------------------------------
     // SAFE FILE NAME
+    // Remove existing image extension first
+    // This prevents:
+    // image.jpg.jpeg
+    // image.png.jpeg
+    // image.webp.jpeg
     // --------------------------------------------------------
     const safeName = String(name)
       .trim()
-      .replace(/[^a-zA-Z0-9._-]/g, "-")
-      .replace(/-+/g, "-");
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-zA-Z0-9_-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
 
+    // Fallback name
+    const finalName = safeName || "image";
+
+    // --------------------------------------------------------
+    // FINAL FILE NAME
+    // --------------------------------------------------------
     const filename =
       Date.now() +
       "-" +
-      safeName +
+      finalName +
       "." +
       ext;
 
@@ -78,10 +91,14 @@ exports.uploadFromDataUrl = async (req, res) => {
       "gallery"
     );
 
-    // Create folder if not exists
-    fs.mkdirSync(uploadDir, {
-      recursive: true,
-    });
+    // --------------------------------------------------------
+    // CREATE GALLERY FOLDER IF NOT EXISTS
+    // --------------------------------------------------------
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, {
+        recursive: true,
+      });
+    }
 
     // --------------------------------------------------------
     // FILE PATH
@@ -92,11 +109,16 @@ exports.uploadFromDataUrl = async (req, res) => {
     );
 
     // --------------------------------------------------------
-    // WRITE FILE
+    // WRITE BASE64 IMAGE TO FILE
     // --------------------------------------------------------
+    const imageBuffer = Buffer.from(
+      base64Data,
+      "base64"
+    );
+
     fs.writeFileSync(
       filePath,
-      Buffer.from(base64Data, "base64")
+      imageBuffer
     );
 
     // --------------------------------------------------------
@@ -110,7 +132,7 @@ exports.uploadFromDataUrl = async (req, res) => {
     // --------------------------------------------------------
     const gallery = await Gallery.create({
       name: String(name).trim(),
-      filename,
+      filename: filename,
       path: imagePath,
     });
 
