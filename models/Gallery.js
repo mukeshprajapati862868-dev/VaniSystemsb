@@ -1,7 +1,6 @@
-
 const mongoose = require("mongoose");
 
-const GallerySchema = new mongoose.Schema(
+const gallerySchema = new mongoose.Schema(
   {
     name: {
       type: String,
@@ -9,37 +8,25 @@ const GallerySchema = new mongoose.Schema(
       trim: true,
     },
 
-    filename: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    mimeType: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    // ========================================================
-    // ACTUAL IMAGE DATA
-    // Base64 Data URL stored directly in MongoDB
-    // ========================================================
+    // Complete base64 data URL
+    // Example:
+    // data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...
     dataUrl: {
       type: String,
       required: true,
     },
 
-    createdAt: {
-      type: Date,
-      default: Date.now,
+    // Frontend expects this field
+    // Example:
+    // /gallery/image/66c123456789
+    path: {
+      type: String,
+      default: "",
     },
   },
   {
-    collection: "gallery",
+    timestamps: true,
   }
 );
 
-module.exports =
-  mongoose.models.Gallery ||
-  mongoose.model("Gallery", GallerySchema);
+module.exports = mongoose.model("Gallery", gallerySchema);
