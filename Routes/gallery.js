@@ -21,33 +21,41 @@ router.post(
     body("name")
       .trim()
       .notEmpty()
-      .withMessage(
-        "Name is required"
-      ),
+      .withMessage("Name is required"),
 
     body("dataUrl")
       .trim()
       .notEmpty()
-      .withMessage(
-        "dataUrl is required"
-      ),
+      .withMessage("dataUrl is required"),
   ],
 
-  (req, res) => {
-    const errors =
-      validationResult(req);
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
 
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+      }
+
+      return await galleryController.uploadFromDataUrl(
+        req,
+        res
+      );
+
+    } catch (error) {
+      console.error(
+        "Gallery route error:",
+        error
+      );
+
+      return res.status(500).json({
         success: false,
-        errors: errors.array(),
+        error: error.message || "Gallery route failed",
       });
     }
-
-    return galleryController.uploadFromDataUrl(
-      req,
-      res
-    );
   }
 );
 
@@ -57,7 +65,7 @@ router.post(
 // ============================================================
 router.get(
   "/",
-  (req, res) => {
+  async (req, res) => {
     return galleryController.getGalleryImages(
       req,
       res
@@ -65,4 +73,19 @@ router.get(
   }
 );
 
+// ============================================================
+// DELETE GALLERY IMAGE
+// DELETE /api/gallery/:id
+// ============================================================
+router.delete(
+  "/:id",
+  async (req, res) => {
+    return galleryController.deleteGalleryImage(
+      req,
+      res
+    );
+  }
+);
+
 module.exports = router;
+
