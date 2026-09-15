@@ -21,20 +21,20 @@ const fs = require('fs');
 const connectDB = require('./config/db');
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const productRoutes = require('./routes/products');
-const orderRoutes = require('./routes/orders');
-const paymentRoutes = require('./routes/payments');
-const cartRoutes = require('./routes/cart');
-const wishlistRoutes = require('./routes/wishlist');
-const addressRoutes = require('./routes/addresses');
-const notificationRoutes = require('./routes/notifications');
-const couponRoutes = require('./routes/coupons');
-const dashboardRoutes = require('./routes/dashboard');
-const galleryRoutes = require('./routes/gallery');
-const videoGalleryRoutes = require('./routes/videoGalleryRoutes');
-const contactQueryRoutes = require('./routes/contactQueryRoutes');
+const authRoutes = require('./Routes/auth');
+const userRoutes = require('./Routes/users');
+const productRoutes = require('./Routes/products');
+const orderRoutes = require('./Routes/orders');
+const paymentRoutes = require('./Routes/payments');
+const cartRoutes = require('./Routes/cart');
+const wishlistRoutes = require('./Routes/wishlist');
+const addressRoutes = require('./Routes/addresses');
+const notificationRoutes = require('./Routes/notifications');
+const couponRoutes = require('./Routes/coupons');
+const dashboardRoutes = require('./Routes/dashboard');
+const galleryRoutes = require('./Routes/gallery');
+const videoGalleryRoutes = require('./Routes/videoGalleryRoutes');
+const contactQueryRoutes = require('./Routes/contactQueryRoutes');
 const galleryController = require('./controllers/galleryController');
 
 // Import middleware
