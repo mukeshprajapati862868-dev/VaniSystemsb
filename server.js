@@ -1,9 +1,11 @@
+
 // // ==================== DNS FIX FOR MONGODB ATLAS (MUST BE ON TOP) ====================
 // const dns = require('dns');
-// dns.setServers(['1.1.1.1', '8.8.8.8']); 
+// dns.setServers(['1.1.1.1', '8.8.8.8']);
 // // ===================================================================================
 
 // require('dotenv').config();
+
 // const express = require('express');
 // const cors = require('cors');
 // const helmet = require('helmet');
@@ -20,198 +22,702 @@
 // const connectDB = require('./config/db');
 
 // // Import routes
-// const authRoutes = require('./routes/auth');
-// const userRoutes = require('./routes/users');
-// const productRoutes = require('./routes/products');
-// const orderRoutes = require('./routes/orders');
-// const paymentRoutes = require('./routes/payments');
-// const cartRoutes = require('./routes/cart');
-// const wishlistRoutes = require('./routes/wishlist');
-// const addressRoutes = require('./routes/addresses');
-// const notificationRoutes = require('./routes/notifications');
-// const couponRoutes = require('./routes/coupons');
-// const dashboardRoutes = require('./routes/dashboard');
-// const galleryRoutes = require('./routes/gallery');
-// const galleryController = require('./controllers/galleryController');
-
-// // Import middleware
-// const errorHandler = require('./middleware/errorHandler');
-// const notFound = require('./middleware/notFound');
+// const authRoutes = require('./Routes/auth');
+// const userRoutes = require('./Routes/users');
+// const productRoutes = require('./Routes/products');
+// const orderRoutes = require('./Routes/orders');
+// const paymentRoutes = require('./Routes/payments');
+// const cartRoutes = require('./Routes/cart');
+// const wishlistRoutes = require('./Routes/wishlist');
+// const addressRoutes = require('./Routes/addresses');
+// const notificationRoutes = require('./Routes/notifications');
+// const couponRoutes = require('./Routes/coupons');
+// const dashboardRoutes = require('./Routes/dashboard');
+// const candidateRoutes = require('./Routes/candidates');
+// const galleryRoutes = require('./Routes/gallery');
 
 // // Initialize Express app
 // const app = express();
 // const httpServer = createServer(app);
 
-// // FIX: Binds a fallback storage instance context object to Express.
-// // This prevents 'middleware/auth.js' from throwing "Storage not initialized".
-// app.set('db', { users: [], wishlists: [], products: [] });
+// // ==================== TRUST PROXY ====================
+// // Required when backend is running behind Plesk / reverse proxy.
+// // This allows express-rate-limit to correctly read req.ip.
+// app.set('trust proxy', 1);
+// // =====================================================
 
-// // Ensure uploads folder exists
+// // Fallback storage
+// app.set('db', {
+//   users: [],
+//   wishlists: [],
+//   products: []
+// });
+
+// // ==================== UPLOADS CONFIGURATION ====================
 // const uploadsRoot = path.join(__dirname, 'uploads');
+
 // try {
 //   fs.mkdirSync(path.join(uploadsRoot, 'candidates'), { recursive: true });
+//   fs.mkdirSync(path.join(uploadsRoot, 'gallery'), { recursive: true });
+
+//   console.log('Uploads directories initialized successfully.');
+//   console.log(`Uploads root: ${uploadsRoot}`);
 // } catch (e) {
-//   // ignore
+//   console.error('Uploads folder initialization error:', e.message);
 // }
 
-// // Socket.io setup
+// // ================================================================
+// // SERVE UPLOADED FILES PUBLICLY
+// // ================================================================
+
+// // Normal uploads URL
+// // Example:
+// // https://api-rishabh.vanisystems.in/uploads/gallery/image.jpg
+// app.use('/uploads', express.static(uploadsRoot));
+
+// // IMPORTANT:
+// // Your existing frontend GalleryContext builds:
+// //
+// // API_BASE_URL + item.path
+// //
+// // API_BASE_URL:
+// // https://api-rishabh.vanisystems.in/api
+// //
+// // If backend returns:
+// // /uploads/gallery/image.jpg
+// //
+// // frontend creates:
+// // https://api-rishabh.vanisystems.in/api/uploads/gallery/image.jpg
+// //
+// // Therefore we also expose uploads through /api/uploads.
+// app.use('/api/uploads', express.static(uploadsRoot));
+
+// // ================================================================
+// // ==================== CORS CONFIGURATION ========================
+// // ================================================================
+
+// const corsOptions = {
+//   origin: true,
+//   credentials: true,
+
+//   methods: [
+//     'GET',
+//     'POST',
+//     'PUT',
+//     'PATCH',
+//     'DELETE',
+//     'OPTIONS',
+//     'HEAD'
+//   ],
+
+//   allowedHeaders: [
+//     'Origin',
+//     'X-Requested-With',
+//     'Content-Type',
+//     'Accept',
+//     'Authorization',
+//     'Cache-Control',
+//     'Pragma',
+//     'Cookie',
+//     'X-Access-Token',
+//     'X-Auth-Token'
+//   ],
+
+//   exposedHeaders: [
+//     'Content-Length',
+//     'Content-Type',
+//     'Authorization'
+//   ],
+
+//   optionsSuccessStatus: 204,
+//   preflightContinue: false
+// };
+
+// app.use(cors(corsOptions));
+
+// // ================================================================
+// // SOCKET.IO SETUP
+// // ================================================================
+
 // const io = new Server(httpServer, {
 //   cors: {
-//     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-//     credentials: true
+//     origin: true,
+//     credentials: true,
+
+//     methods: [
+//       'GET',
+//       'POST',
+//       'PUT',
+//       'DELETE',
+//       'PATCH',
+//       'OPTIONS',
+//       'HEAD'
+//     ],
+
+//     allowedHeaders: [
+//       'Origin',
+//       'X-Requested-With',
+//       'Content-Type',
+//       'Accept',
+//       'Authorization',
+//       'Cache-Control',
+//       'Pragma'
+//     ]
 //   }
 // });
 
-// // Make io accessible to routes
 // app.set('io', io);
 
-// // Security middleware
-// app.use(helmet({
-//   contentSecurityPolicy: {
-//     directives: {
-//       defaultSrc: ["'self'"],
-//       styleSrc: ["'self'", "'unsafe-inline'", "https://jsdelivr.net"],
-//       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://jsdelivr.net"],
-//       imgSrc: ["'self'", "data:", "https:", "https://unsplash.com"],
-//       connectSrc: ["'self'", "https://razorpay.com"],
-//       fontSrc: ["'self'", "https://gstatic.com"],
-//       objectSrc: ["'none'"],
-//       mediaSrc: ["'self'"],
-//       frameSrc: ["'none'"]
+// // ================================================================
+// // SECURITY MIDDLEWARE
+// // ================================================================
+
+// app.use(
+//   helmet({
+//     contentSecurityPolicy: {
+//       directives: {
+//         defaultSrc: ["'self'"],
+
+//         styleSrc: [
+//           "'self'",
+//           "'unsafe-inline'",
+//           'https://jsdelivr.net',
+//           'https://cdn.jsdelivr.net',
+//           'https://fonts.googleapis.com'
+//         ],
+
+//         scriptSrc: [
+//           "'self'",
+//           "'unsafe-inline'",
+//           "'unsafe-eval'",
+//           'https://jsdelivr.net',
+//           'https://cdn.jsdelivr.net'
+//         ],
+
+//         imgSrc: [
+//           "'self'",
+//           'data:',
+//           'blob:',
+//           'https:',
+//           'http:',
+//           'https://unsplash.com'
+//         ],
+
+//         connectSrc: [
+//           "'self'",
+//           'https://rishabh.vanisystems.in',
+//           'https://api-rishabh.vanisystems.in',
+//           'https://vani-systems-ouit.vercel.app',
+//           'https://*.vercel.app',
+//           'https://vanisystemsb-1.onrender.com',
+//           'https://*.onrender.com',
+//           'http://localhost:3000',
+//           'http://localhost:5173',
+//           'http://localhost:5174',
+//           'http://localhost:5000',
+//           'http://127.0.0.1:3000',
+//           'http://127.0.0.1:5173',
+//           'http://127.0.0.1:5174',
+//           'http://127.0.0.1:5000',
+//           'https://razorpay.com',
+//           'https://api.razorpay.com',
+//           'ws:',
+//           'wss:'
+//         ],
+
+//         fontSrc: [
+//           "'self'",
+//           'data:',
+//           'https://fonts.googleapis.com',
+//           'https://fonts.gstatic.com',
+//           'https://gstatic.com'
+//         ],
+
+//         objectSrc: ["'none'"],
+
+//         mediaSrc: [
+//           "'self'",
+//           'data:',
+//           'blob:',
+//           'https:',
+//           'http:'
+//         ],
+
+//         frameSrc: [
+//           "'self'",
+//           'https://razorpay.com',
+//           'https://api.razorpay.com'
+//         ],
+
+//         frameAncestors: ["'self'"],
+
+//         baseUri: ["'self'"],
+
+//         formAction: ["'self'"]
+//       }
+//     },
+
+//     crossOriginEmbedderPolicy: false,
+
+//     crossOriginResourcePolicy: {
+//       policy: 'cross-origin'
 //     }
-//   },
-//   crossOriginEmbedderPolicy: false
-// }));
+//   })
+// );
 
-// // CORS configuration
-// app.use(cors({
-//   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-//   credentials: true,
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-// }));
+// // ================================================================
+// // RATE LIMITING
+// // ================================================================
 
-// // Rate limiting - FIX: Limit extended to 5000 requests for non-blocking operations
+// // IMPORTANT:
+// // No custom keyGenerator is used here.
+// // express-rate-limit will use its safe built-in IP handling.
 // const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, 
+//   windowMs: 15 * 60 * 1000,
+
 //   max: 5000,
+
 //   message: {
 //     error: 'Too many requests from this IP, please try again later.'
 //   },
+
 //   standardHeaders: true,
-//   legacyHeaders: false
+
+//   legacyHeaders: false,
+
+//   skip: (req) => {
+//     return (
+//       req.path === '/health' ||
+//       req.path === '/api/health'
+//     );
+//   }
 // });
 
 // app.use('/api/', limiter);
 
-// // Body parsing middleware - Size increased to 50mb for Base64 Strings
-// app.use(express.json({ limit: '50mb' }));
-// app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// // ================================================================
+// // BODY PARSING MIDDLEWARE
+// // ================================================================
+
+// // Required for Gallery base64 image upload.
+// // Frontend sends:
+// // {
+// //   name: "...",
+// //   dataUrl: "data:image/jpeg;base64,..."
+// // }
+// app.use(
+//   express.json({
+//     limit: '50mb'
+//   })
+// );
+
+// app.use(
+//   express.urlencoded({
+//     extended: true,
+//     limit: '50mb'
+//   })
+// );
+
+// // ================================================================
+// // COOKIE PARSER
+// // ================================================================
+
 // app.use(cookieParser());
 
-// // Compression middleware
+// // ================================================================
+// // COMPRESSION
+// // ================================================================
+
 // app.use(compression());
 
-// // Serve uploaded files through the API origin
-// app.use('/api/uploads', express.static(uploadsRoot));
+// // ================================================================
+// // LOGGING
+// // ================================================================
 
-// // Logging middleware
 // if (process.env.NODE_ENV === 'development') {
 //   app.use(morgan('dev'));
 // } else {
 //   app.use(morgan('combined'));
 // }
 
-// // Socket.io connection handling
+// // ================================================================
+// // SOCKET.IO CONNECTION HANDLING
+// // ================================================================
+
 // io.on('connection', (socket) => {
 //   console.log(`User connected: ${socket.id}`);
 
 //   socket.on('join-user-room', (userId) => {
+//     if (!userId) return;
+
 //     socket.join(`user-${userId}`);
-//     console.log(`User ${userId} joined their room`);
+
+//     console.log(
+//       `User ${userId} joined their room`
+//     );
 //   });
 
 //   socket.on('join-admin-room', () => {
 //     socket.join('admin-room');
+
 //     console.log('Admin joined admin room');
 //   });
 
 //   socket.on('disconnect', () => {
-//     console.log(`User disconnected: ${socket.id}`);
+//     console.log(
+//       `User disconnected: ${socket.id}`
+//     );
 //   });
 // });
 
-// // API Routes
-// app.use('/api/auth', authRoutes);
-// app.use("/api/admin", require("./routes/adminRoutes"));
-// app.use('/api/users', userRoutes);
-// app.use('/api/products', productRoutes);
-// app.use('/api/orders', orderRoutes);
-// app.use('/api/payments', paymentRoutes);
-// app.use('/api/cart', cartRoutes);
-// app.use('/api/wishlist', wishlistRoutes);
-// app.use('/api/addresses', addressRoutes);
-// app.use('/api/notifications', notificationRoutes);
-// app.use('/api/coupons', couponRoutes);
-// app.use('/api/dashboard', dashboardRoutes);
-// // Candidate registration route
-// const candidateRoutes = require('./routes/candidates');
-// app.use('/api/candidates', candidateRoutes);
-// // Gallery routes
-// app.use('/api/gallery', galleryRoutes);
-// app.get('/api/gallery', galleryController.getGalleryImages);
+// // ================================================================
+// // ROOT ROUTE
+// // ================================================================
 
-// // Health check endpoint
+// app.get('/', (req, res) => {
+//   res.status(200).json({
+//     success: true,
+//     status: 'online',
+
+//     message:
+//       'Vani Systems Backend API is running successfully.',
+
+//     frontend:
+//       'https://rishabh.vanisystems.in',
+
+//     timestamp:
+//       new Date().toISOString()
+//   });
+// });
+
+// // ================================================================
+// // BASIC HEALTH ROUTE
+// // ================================================================
+
+// app.get('/health', (req, res) => {
+//   res.status(200).json({
+//     success: true,
+//     status: 'online',
+
+//     message:
+//       'Vani Systems Backend is running',
+
+//     timestamp:
+//       new Date().toISOString()
+//   });
+// });
+
+// // ================================================================
+// // ==================== API ROUTES ================================
+// // ================================================================
+
+// app.use(
+//   '/api/auth',
+//   authRoutes
+// );
+
+// app.use(
+//   '/api/admin',
+//   require('./Routes/adminRoutes')
+// );
+
+// app.use(
+//   '/api/users',
+//   userRoutes
+// );
+
+// app.use(
+//   '/api/products',
+//   productRoutes
+// );
+
+// app.use(
+//   '/api/orders',
+//   orderRoutes
+// );
+
+// app.use(
+//   '/api/payments',
+//   paymentRoutes
+// );
+
+// app.use(
+//   '/api/cart',
+//   cartRoutes
+// );
+
+// app.use(
+//   '/api/wishlist',
+//   wishlistRoutes
+// );
+
+// app.use(
+//   '/api/addresses',
+//   addressRoutes
+// );
+
+// app.use(
+//   '/api/notifications',
+//   notificationRoutes
+// );
+
+// app.use(
+//   '/api/coupons',
+//   couponRoutes
+// );
+
+// app.use(
+//   '/api/dashboard',
+//   dashboardRoutes
+// );
+
+// app.use(
+//   '/api/candidates',
+//   candidateRoutes
+// );
+
+// // ================================================================
+// // GALLERY ROUTES
+// // ================================================================
+// //
+// // POST /api/gallery/upload
+// // GET  /api/gallery
+// //
+// app.use(
+//   '/api/gallery',
+//   galleryRoutes
+// );
+
+// // ================================================================
+// // HEALTH CHECK ENDPOINT
+// // ================================================================
+
 // app.get('/api/health', (req, res) => {
 //   res.status(200).json({
 //     status: 'success',
-//     message: 'Server is running',
-//     timestamp: new Date().toISOString()
+
+//     message:
+//       'Server is running',
+
+//     frontend:
+//       'https://rishabh.vanisystems.in',
+
+//     cors: 'enabled',
+
+//     timestamp:
+//       new Date().toISOString()
 //   });
 // });
 
-// // 404 handler
+// // ================================================================
+// // ERROR MIDDLEWARE
+// // ================================================================
+
+// const errorHandler =
+//   require('./middleware/errorHandler');
+
+// const notFound =
+//   require('./middleware/notFound');
+
 // app.use(notFound);
 
-// // Global error handler
 // app.use(errorHandler);
 
-// // Start server
-// const PORT = process.env.PORT || 5000;
+// // ================================================================
+// // START SERVER
+// // ================================================================
+
+// const PORT =
+//   process.env.PORT || 5000;
 
 // const startServer = async () => {
-//   // Connect to MongoDB Atlas first
-//   await connectDB();
-  
-//   httpServer.listen(PORT, () => {
-//     console.log(`Server running on port ${PORT}`);
-//     console.log(`Auth routes mounted at /api/auth`);
-//   });
+//   try {
+//     // Connect MongoDB
+//     await connectDB();
+
+//     // Start HTTP server
+//     httpServer.listen(
+//       PORT,
+//       '0.0.0.0',
+//       () => {
+//         console.log('');
+
+//         console.log(
+//           '===================================================='
+//         );
+
+//         console.log(
+//           '🚀 VANI SYSTEMS BACKEND SERVER STARTED'
+//         );
+
+//         console.log(
+//           '===================================================='
+//         );
+
+//         console.log(
+//           `🚀 Server running on port ${PORT}`
+//         );
+
+//         console.log(
+//           `🌐 Root route: /`
+//         );
+
+//         console.log(
+//           `❤️ Health route: /api/health`
+//         );
+
+//         console.log(
+//           `🔐 Auth routes mounted at /api/auth`
+//         );
+
+//         console.log(
+//           `👤 User routes mounted at /api/users`
+//         );
+
+//         console.log(
+//           `📦 Product routes mounted at /api/products`
+//         );
+
+//         console.log(
+//           `🛒 Order routes mounted at /api/orders`
+//         );
+
+//         console.log(
+//           `💳 Payment routes mounted at /api/payments`
+//         );
+
+//         console.log(
+//           `🛍️ Cart routes mounted at /api/cart`
+//         );
+
+//         console.log(
+//           `❤️ Wishlist routes mounted at /api/wishlist`
+//         );
+
+//         console.log(
+//           `📍 Address routes mounted at /api/addresses`
+//         );
+
+//         console.log(
+//           `🔔 Notification routes mounted at /api/notifications`
+//         );
+
+//         console.log(
+//           `🎟️ Coupon routes mounted at /api/coupons`
+//         );
+
+//         console.log(
+//           `📊 Dashboard routes mounted at /api/dashboard`
+//         );
+
+//         console.log(
+//           `👨‍🎓 Candidate routes mounted at /api/candidates`
+//         );
+
+//         console.log(
+//           `🖼️ Gallery routes mounted at /api/gallery`
+//         );
+
+//         console.log(
+//           `📁 Uploads served from /uploads`
+//         );
+
+//         console.log(
+//           `📁 Uploads also served from /api/uploads`
+//         );
+
+//         console.log(
+//           `🌐 Plesk Frontend: https://rishabh.vanisystems.in`
+//         );
+
+//         console.log(
+//           `🌐 CORS: ALL ORIGINS ENABLED`
+//         );
+
+//         console.log(
+//           `🔌 Socket.IO: ENABLED`
+//         );
+
+//         console.log(
+//           '===================================================='
+//         );
+
+//         console.log('');
+//       }
+//     );
+
+//   } catch (error) {
+
+//     console.error(
+//       '❌ Server startup failed:',
+//       error.message
+//     );
+
+//     process.exit(1);
+//   }
 // };
 
-// // Handle unhandled promise rejections
-// process.on('unhandledRejection', (err) => {
-//   console.error(`Unhandled Rejection: ${err.message}`);
-//   httpServer.close(() => process.exit(1));
-// });
+// // ================================================================
+// // HANDLE UNHANDLED PROMISE REJECTIONS
+// // ================================================================
 
-// // Handle uncaught exceptions
-// process.on('uncaughtException', (err) => {
-//   console.error(`Uncaught Exception: ${err.message}`);
-//   process.exit(1);
-// });
+// process.on(
+//   'unhandledRejection',
+//   (err) => {
+
+//     console.error(
+//       `Unhandled Rejection: ${err.message}`
+//     );
+
+//     httpServer.close(
+//       () => process.exit(1)
+//     );
+//   }
+// );
+
+// // ================================================================
+// // HANDLE UNCAUGHT EXCEPTIONS
+// // ================================================================
+
+// process.on(
+//   'uncaughtException',
+//   (err) => {
+
+//     console.error(
+//       `Uncaught Exception: ${err.message}`
+//     );
+
+//     process.exit(1);
+//   }
+// );
+
+// // ================================================================
+// // START
+// // ================================================================
 
 // startServer();
 
-// module.exports = { app, io };
+// // ================================================================
+// // EXPORT
+// // ================================================================
+
+// module.exports = {
+//   app,
+//   io
+// };
+
+
+
+
+
 
 // ==================== DNS FIX FOR MONGODB ATLAS (MUST BE ON TOP) ====================
 const dns = require('dns');
-dns.setServers(['1.1.1.1', '8.8.8.8']); 
+dns.setServers(['1.1.1.1', '8.8.8.8']);
 // ===================================================================================
 
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -228,195 +734,697 @@ const fs = require('fs');
 const connectDB = require('./config/db');
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const productRoutes = require('./routes/products');
-const orderRoutes = require('./routes/orders');
-const paymentRoutes = require('./routes/payments');
-const cartRoutes = require('./routes/cart');
-const wishlistRoutes = require('./routes/wishlist');
-const addressRoutes = require('./routes/addresses');
-const notificationRoutes = require('./routes/notifications');
-const couponRoutes = require('./routes/coupons');
-const dashboardRoutes = require('./routes/dashboard');
-const galleryRoutes = require('./routes/gallery');
+const authRoutes = require('./Routes/auth');
+const userRoutes = require('./Routes/users');
+const productRoutes = require('./Routes/products');
+const orderRoutes = require('./Routes/orders');
+const paymentRoutes = require('./Routes/payments');
+const cartRoutes = require('./Routes/cart');
+const wishlistRoutes = require('./Routes/wishlist');
+const addressRoutes = require('./Routes/addresses');
+const notificationRoutes = require('./Routes/notifications');
+const couponRoutes = require('./Routes/coupons');
+const dashboardRoutes = require('./Routes/dashboard');
+const candidateRoutes = require('./Routes/candidates');
+const galleryRoutes = require('./Routes/gallery');
 const videoGalleryRoutes =require("./routes/videoGalleryRoutes");
 const contactQueryRoutes = require("./routes/contactQueryRoutes");
-const galleryController = require('./controllers/galleryController');
-
-// Import middleware
-const errorHandler = require('./middleware/errorHandler');
-const notFound = require('./middleware/notFound');
 
 // Initialize Express app
 const app = express();
 const httpServer = createServer(app);
 
-// FIX: Binds a fallback storage instance context object to Express.
-// This prevents 'middleware/auth.js' from throwing "Storage not initialized".
-app.set('db', { users: [], wishlists: [], products: [] });
+// ==================== TRUST PROXY ====================
+// Required when backend is running behind Plesk / reverse proxy.
+// This allows express-rate-limit to correctly read req.ip.
+app.set('trust proxy', 1);
+// =====================================================
 
-// Ensure uploads folder exists - FIXED: Added gallery folder creation
+// Fallback storage
+app.set('db', {
+  users: [],
+  wishlists: [],
+  products: []
+});
+
+// ==================== UPLOADS CONFIGURATION ====================
 const uploadsRoot = path.join(__dirname, 'uploads');
+
 try {
   fs.mkdirSync(path.join(uploadsRoot, 'candidates'), { recursive: true });
   fs.mkdirSync(path.join(uploadsRoot, 'gallery'), { recursive: true });
+
+  console.log('Uploads directories initialized successfully.');
+  console.log(`Uploads root: ${uploadsRoot}`);
 } catch (e) {
-  // ignore
+  console.error('Uploads folder initialization error:', e.message);
 }
 
-// Socket.io setup
+// ================================================================
+// SERVE UPLOADED FILES PUBLICLY
+// ================================================================
+
+// Normal uploads URL
+// Example:
+// https://api-rishabh.vanisystems.in/uploads/gallery/image.jpg
+app.use('/uploads', express.static(uploadsRoot));
+
+// IMPORTANT:
+// Your existing frontend GalleryContext builds:
+//
+// API_BASE_URL + item.path
+//
+// API_BASE_URL:
+// https://api-rishabh.vanisystems.in/api
+//
+// If backend returns:
+// /uploads/gallery/image.jpg
+//
+// frontend creates:
+// https://api-rishabh.vanisystems.in/api/uploads/gallery/image.jpg
+//
+// Therefore we also expose uploads through /api/uploads.
+app.use('/api/uploads', express.static(uploadsRoot));
+
+// ================================================================
+// ==================== CORS CONFIGURATION ========================
+// ================================================================
+
+const corsOptions = {
+  origin: true,
+  credentials: true,
+
+  methods: [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS',
+    'HEAD'
+  ],
+
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'Pragma',
+    'Cookie',
+    'X-Access-Token',
+    'X-Auth-Token'
+  ],
+
+  exposedHeaders: [
+    'Content-Length',
+    'Content-Type',
+    'Authorization'
+  ],
+
+  optionsSuccessStatus: 204,
+  preflightContinue: false
+};
+
+app.use(cors(corsOptions));
+
+// ================================================================
+// SOCKET.IO SETUP
+// ================================================================
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    credentials: true
+    origin: true,
+    credentials: true,
+
+    methods: [
+      'GET',
+      'POST',
+      'PUT',
+      'DELETE',
+      'PATCH',
+      'OPTIONS',
+      'HEAD'
+    ],
+
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'Cache-Control',
+      'Pragma'
+    ]
   }
 });
 
-// Make io accessible to routes
 app.set('io', io);
 
-// Security middleware - FIXED: Added crossOriginResourcePolicy to allow cross-origin images
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://jsdelivr.net"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://jsdelivr.net"],
-      imgSrc: ["'self'", "data:", "https:", "https://unsplash.com"],
-      connectSrc: ["'self'", "https://razorpay.com"],
-      fontSrc: ["'self'", "https://gstatic.com"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
+// ================================================================
+// SECURITY MIDDLEWARE
+// ================================================================
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          'https://jsdelivr.net',
+          'https://cdn.jsdelivr.net',
+          'https://fonts.googleapis.com'
+        ],
+
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          'https://jsdelivr.net',
+          'https://cdn.jsdelivr.net'
+        ],
+
+        imgSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https:',
+          'http:',
+          'https://unsplash.com'
+        ],
+
+        connectSrc: [
+          "'self'",
+          'https://rishabh.vanisystems.in',
+          'https://api-rishabh.vanisystems.in',
+          'https://vani-systems-ouit.vercel.app',
+          'https://*.vercel.app',
+          'https://vanisystemsb-1.onrender.com',
+          'https://*.onrender.com',
+          'http://localhost:3000',
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'http://localhost:5000',
+          'http://127.0.0.1:3000',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:5174',
+          'http://127.0.0.1:5000',
+          'https://razorpay.com',
+          'https://api.razorpay.com',
+          'ws:',
+          'wss:'
+        ],
+
+        fontSrc: [
+          "'self'",
+          'data:',
+          'https://fonts.googleapis.com',
+          'https://fonts.gstatic.com',
+          'https://gstatic.com'
+        ],
+
+        objectSrc: ["'none'"],
+
+        mediaSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https:',
+          'http:'
+        ],
+
+        frameSrc: [
+          "'self'",
+          'https://razorpay.com',
+          'https://api.razorpay.com'
+        ],
+
+        frameAncestors: ["'self'"],
+
+        baseUri: ["'self'"],
+
+        formAction: ["'self'"]
+      }
+    },
+
+    crossOriginEmbedderPolicy: false,
+
+    crossOriginResourcePolicy: {
+      policy: 'cross-origin'
     }
-  },
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+  })
+);
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+// ================================================================
+// RATE LIMITING
+// ================================================================
 
-// Rate limiting - FIX: Limit extended to 5000 requests for non-blocking operations
+// IMPORTANT:
+// No custom keyGenerator is used here.
+// express-rate-limit will use its safe built-in IP handling.
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
+  windowMs: 15 * 60 * 1000,
+
   max: 5000,
+
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },
+
   standardHeaders: true,
-  legacyHeaders: false
+
+  legacyHeaders: false,
+
+  skip: (req) => {
+    return (
+      req.path === '/health' ||
+      req.path === '/api/health'
+    );
+  }
 });
 
 app.use('/api/', limiter);
 
-// Body parsing middleware - Size increased to 50mb for Base64 Strings
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// ================================================================
+// BODY PARSING MIDDLEWARE
+// ================================================================
+
+// Required for Gallery base64 image upload.
+// Frontend sends:
+// {
+//   name: "...",
+//   dataUrl: "data:image/jpeg;base64,..."
+// }
+app.use(
+  express.json({
+    limit: '50mb'
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: '50mb'
+  })
+);
+
+// ================================================================
+// COOKIE PARSER
+// ================================================================
+
 app.use(cookieParser());
 
-// Compression middleware
+// ================================================================
+// COMPRESSION
+// ================================================================
+
 app.use(compression());
 
-// Serve uploaded files through the API origin
-app.use('/api/uploads', express.static(uploadsRoot));
+// ================================================================
+// LOGGING
+// ================================================================
 
-// Logging middleware
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
 }
 
-// Socket.io connection handling
+// ================================================================
+// SOCKET.IO CONNECTION HANDLING
+// ================================================================
+
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
   socket.on('join-user-room', (userId) => {
+    if (!userId) return;
+
     socket.join(`user-${userId}`);
-    console.log(`User ${userId} joined their room`);
+
+    console.log(
+      `User ${userId} joined their room`
+    );
   });
 
   socket.on('join-admin-room', () => {
     socket.join('admin-room');
+
     console.log('Admin joined admin room');
   });
 
   socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
+    console.log(
+      `User disconnected: ${socket.id}`
+    );
   });
 });
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use("/api/admin", require("./routes/adminRoutes"));
-app.use('/api/users', userRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/cart', cartRoutes);
-app.use('/api/wishlist', wishlistRoutes);
-app.use('/api/addresses', addressRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/coupons', couponRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use("/api/contact-queries", contactQueryRoutes);
-// Candidate registration route
-const candidateRoutes = require('./routes/candidates');
-app.use('/api/candidates', candidateRoutes);
-// Gallery routes
-app.use('/api/gallery', galleryRoutes);
-app.use("/api/videos",videoGalleryRoutes);
-app.get('/api/gallery', galleryController.getGalleryImages);
+// ================================================================
+// ROOT ROUTE
+// ================================================================
 
-// Health check endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: 'online',
+
+    message:
+      'Vani Systems Backend API is running successfully.',
+
+    frontend:
+      'https://rishabh.vanisystems.in',
+
+    timestamp:
+      new Date().toISOString()
+  });
+});
+
+// ================================================================
+// BASIC HEALTH ROUTE
+// ================================================================
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: 'online',
+
+    message:
+      'Vani Systems Backend is running',
+
+    timestamp:
+      new Date().toISOString()
+  });
+});
+
+// ================================================================
+// ==================== API ROUTES ================================
+// ================================================================
+
+app.use(
+  '/api/auth',
+  authRoutes
+);
+
+app.use(
+  '/api/admin',
+  require('./Routes/adminRoutes')
+);
+
+app.use(
+  '/api/users',
+  userRoutes
+);
+
+app.use(
+  '/api/products',
+  productRoutes
+);
+
+app.use(
+  '/api/orders',
+  orderRoutes
+);
+
+app.use(
+  '/api/payments',
+  paymentRoutes
+);
+
+app.use(
+  '/api/cart',
+  cartRoutes
+);
+
+app.use(
+  '/api/wishlist',
+  wishlistRoutes
+);
+
+app.use(
+  '/api/addresses',
+  addressRoutes
+);
+
+app.use(
+  '/api/notifications',
+  notificationRoutes
+);
+
+app.use(
+  '/api/coupons',
+  couponRoutes
+);
+
+app.use(
+  '/api/dashboard',
+  dashboardRoutes
+);
+
+app.use(
+  '/api/candidates',
+  candidateRoutes
+);
+
+app.use("/api/contact-queries", contactQueryRoutes);
+app.use("/api/videos",videoGalleryRoutes);
+// ================================================================
+// GALLERY ROUTES
+// ================================================================
+//
+// GET    /api/gallery
+// POST   /api/gallery/upload
+// GET    /api/gallery/image/:id
+// PUT    /api/gallery/:id
+// DELETE /api/gallery/:id
+//
+// Gallery images are stored in MongoDB as base64 data.
+// The actual image is served through:
+// /api/gallery/image/:id
+//
+app.use(
+  '/api/gallery',
+  galleryRoutes
+);
+
+// ================================================================
+// HEALTH CHECK ENDPOINT
+// ================================================================
+
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'success',
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
+
+    message:
+      'Server is running',
+
+    frontend:
+      'https://rishabh.vanisystems.in',
+
+    cors: 'enabled',
+
+    timestamp:
+      new Date().toISOString()
   });
 });
 
-// 404 handler
+// ================================================================
+// ERROR MIDDLEWARE
+// ================================================================
+
+const errorHandler =
+  require('./middleware/errorHandler');
+
+const notFound =
+  require('./middleware/notFound');
+
 app.use(notFound);
 
-// Global error handler
 app.use(errorHandler);
 
-// Start server
-const PORT = process.env.PORT || 5000;
+// ================================================================
+// START SERVER
+// ================================================================
+
+const PORT =
+  process.env.PORT || 5000;
 
 const startServer = async () => {
-  // Connect to MongoDB Atlas first
-  await connectDB();
-  
-  httpServer.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Auth routes mounted at /api/auth`);
-  });
+  try {
+    // Connect MongoDB
+    await connectDB();
+
+    // Start HTTP server
+    httpServer.listen(
+      PORT,
+      '0.0.0.0',
+      () => {
+        console.log('');
+
+        console.log(
+          '===================================================='
+        );
+
+        console.log(
+          '🚀 VANI SYSTEMS BACKEND SERVER STARTED'
+        );
+
+        console.log(
+          '===================================================='
+        );
+
+        console.log(
+          `🚀 Server running on port ${PORT}`
+        );
+
+        console.log(
+          `🌐 Root route: /`
+        );
+
+        console.log(
+          `❤️ Health route: /api/health`
+        );
+
+        console.log(
+          `🔐 Auth routes mounted at /api/auth`
+        );
+
+        console.log(
+          `👤 User routes mounted at /api/users`
+        );
+
+        console.log(
+          `📦 Product routes mounted at /api/products`
+        );
+
+        console.log(
+          `🛒 Order routes mounted at /api/orders`
+        );
+
+        console.log(
+          `💳 Payment routes mounted at /api/payments`
+        );
+
+        console.log(
+          `🛍️ Cart routes mounted at /api/cart`
+        );
+
+        console.log(
+          `❤️ Wishlist routes mounted at /api/wishlist`
+        );
+
+        console.log(
+          `📍 Address routes mounted at /api/addresses`
+        );
+
+        console.log(
+          `🔔 Notification routes mounted at /api/notifications`
+        );
+
+        console.log(
+          `🎟️ Coupon routes mounted at /api/coupons`
+        );
+
+        console.log(
+          `📊 Dashboard routes mounted at /api/dashboard`
+        );
+
+        console.log(
+          `👨‍🎓 Candidate routes mounted at /api/candidates`
+        );
+
+        console.log(
+          `🖼️ Gallery routes mounted at /api/gallery`
+        );
+
+        console.log(
+          `📁 Uploads served from /uploads`
+        );
+
+        console.log(
+          `📁 Uploads also served from /api/uploads`
+        );
+
+        console.log(
+          `🌐 Plesk Frontend: https://rishabh.vanisystems.in`
+        );
+
+        console.log(
+          `🌐 CORS: ALL ORIGINS ENABLED`
+        );
+
+        console.log(
+          `🔌 Socket.IO: ENABLED`
+        );
+
+        console.log(
+          '===================================================='
+        );
+
+        console.log('');
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      '❌ Server startup failed:',
+      error.message
+    );
+
+    process.exit(1);
+  }
 };
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error(`Unhandled Rejection: ${err.message}`);
-  httpServer.close(() => process.exit(1));
-});
+// ================================================================
+// HANDLE UNHANDLED PROMISE REJECTIONS
+// ================================================================
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error(`Uncaught Exception: ${err.message}`);
-  process.exit(1);
-});
+process.on(
+  'unhandledRejection',
+  (err) => {
+
+    console.error(
+      `Unhandled Rejection: ${err.message}`
+    );
+
+    httpServer.close(
+      () => process.exit(1)
+    );
+  }
+);
+
+// ================================================================
+// HANDLE UNCAUGHT EXCEPTIONS
+// ================================================================
+
+process.on(
+  'uncaughtException',
+  (err) => {
+
+    console.error(
+      `Uncaught Exception: ${err.message}`
+    );
+
+    process.exit(1);
+  }
+);
+
+// ================================================================
+// START
+// ================================================================
 
 startServer();
 
-module.exports = { app, io };
- 
+// ================================================================
+// EXPORT
+// ================================================================
+
+module.exports = {
+  app,
+  io
+};
