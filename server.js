@@ -748,8 +748,8 @@ const couponRoutes = require('./Routes/coupons');
 const dashboardRoutes = require('./Routes/dashboard');
 const candidateRoutes = require('./Routes/candidates');
 const galleryRoutes = require('./Routes/gallery');
-const videoGalleryRoutes =require("./routes/videoGalleryRoutes");
-const contactQueryRoutes = require("./routes/contactQueryRoutes");
+const videoGalleryRoutes =require("./Routes/videoGalleryRoutes");
+const contactQueryRoutes = require("./Routes/contactQueryRoutes");
 const galleryController = require('./controllers/galleryController');
 
 // Initialize Express app
