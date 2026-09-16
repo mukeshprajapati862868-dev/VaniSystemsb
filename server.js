@@ -1,3 +1,4 @@
+
 // ==================== DNS FIX FOR MONGODB ATLAS (MUST BE ON TOP) ====================
 const dns = require('dns');
 dns.setServers(['1.1.1.1', '8.8.8.8']);
@@ -34,15 +35,14 @@ const couponRoutes = require('./Routes/coupons');
 const dashboardRoutes = require('./Routes/dashboard');
 const candidateRoutes = require('./Routes/candidates');
 const galleryRoutes = require('./Routes/gallery');
-const videoGalleryRoutes = require("./Routes/videoGalleryRoutes");
-const contactQueryRoutes = require("./Routes/contactQueryRoutes");
-const galleryController = require('./controllers/galleryController');
 
 // Initialize Express app
 const app = express();
 const httpServer = createServer(app);
 
 // ==================== TRUST PROXY ====================
+// Required when backend is running behind Plesk / reverse proxy.
+// This allows express-rate-limit to correctly read req.ip.
 app.set('trust proxy', 1);
 // =====================================================
 
@@ -57,43 +57,47 @@ app.set('db', {
 const uploadsRoot = path.join(__dirname, 'uploads');
 
 try {
-  fs.mkdirSync(path.join(uploadsRoot, 'candidates'), {
-    recursive: true
-  });
-
-  fs.mkdirSync(path.join(uploadsRoot, 'gallery'), {
-    recursive: true
-  });
+  fs.mkdirSync(path.join(uploadsRoot, 'candidates'), { recursive: true });
+  fs.mkdirSync(path.join(uploadsRoot, 'gallery'), { recursive: true });
 
   console.log('Uploads directories initialized successfully.');
   console.log(`Uploads root: ${uploadsRoot}`);
 } catch (e) {
-  console.error(
-    'Uploads folder initialization error:',
-    e.message
-  );
+  console.error('Uploads folder initialization error:', e.message);
 }
 
 // ================================================================
 // SERVE UPLOADED FILES PUBLICLY
 // ================================================================
 
-app.use(
-  '/uploads',
-  express.static(uploadsRoot)
-);
+// Normal uploads URL
+// Example:
+// https://api-rishabh.vanisystems.in/uploads/gallery/image.jpg
+app.use('/uploads', express.static(uploadsRoot));
 
-app.use(
-  '/api/uploads',
-  express.static(uploadsRoot)
-);
+// IMPORTANT:
+// Your existing frontend GalleryContext builds:
+//
+// API_BASE_URL + item.path
+//
+// API_BASE_URL:
+// https://api-rishabh.vanisystems.in/api
+//
+// If backend returns:
+// /uploads/gallery/image.jpg
+//
+// frontend creates:
+// https://api-rishabh.vanisystems.in/api/uploads/gallery/image.jpg
+//
+// Therefore we also expose uploads through /api/uploads.
+app.use('/api/uploads', express.static(uploadsRoot));
 
 // ================================================================
 // ==================== CORS CONFIGURATION ========================
 // ================================================================
 
 const corsOptions = {
-  origin: true,                 // ALL ORIGINS ALLOWED
+  origin: true,
   credentials: true,
 
   methods: [
@@ -129,11 +133,7 @@ const corsOptions = {
   preflightContinue: false
 };
 
-
-
 app.use(cors(corsOptions));
-
-app.options(/.*/, cors(corsOptions));
 
 // ================================================================
 // SOCKET.IO SETUP
@@ -141,7 +141,7 @@ app.options(/.*/, cors(corsOptions));
 
 const io = new Server(httpServer, {
   cors: {
-    origin: true,               // ALL ORIGINS ALLOWED
+    origin: true,
     credentials: true,
 
     methods: [
@@ -176,7 +176,6 @@ app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
-
         defaultSrc: ["'self'"],
 
         styleSrc: [
@@ -206,8 +205,6 @@ app.use(
 
         connectSrc: [
           "'self'",
-          'https://vanisystems.in',
-          'https://www.vanisystems.in',
           'https://rishabh.vanisystems.in',
           'https://api-rishabh.vanisystems.in',
           'https://vani-systems-ouit.vercel.app',
@@ -272,15 +269,16 @@ app.use(
 // RATE LIMITING
 // ================================================================
 
+// IMPORTANT:
+// No custom keyGenerator is used here.
+// express-rate-limit will use its safe built-in IP handling.
 const limiter = rateLimit({
-
   windowMs: 15 * 60 * 1000,
 
   max: 5000,
 
   message: {
-    error:
-      'Too many requests from this IP, please try again later.'
+    error: 'Too many requests from this IP, please try again later.'
   },
 
   standardHeaders: true,
@@ -301,6 +299,12 @@ app.use('/api/', limiter);
 // BODY PARSING MIDDLEWARE
 // ================================================================
 
+// Required for Gallery base64 image upload.
+// Frontend sends:
+// {
+//   name: "...",
+//   dataUrl: "data:image/jpeg;base64,..."
+// }
 app.use(
   express.json({
     limit: '50mb'
@@ -341,50 +345,29 @@ if (process.env.NODE_ENV === 'development') {
 // ================================================================
 
 io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.id}`);
 
-  console.log(
-    `User connected: ${socket.id}`
-  );
+  socket.on('join-user-room', (userId) => {
+    if (!userId) return;
 
-  socket.on(
-    'join-user-room',
-    (userId) => {
+    socket.join(`user-${userId}`);
 
-      if (!userId) return;
+    console.log(
+      `User ${userId} joined their room`
+    );
+  });
 
-      socket.join(
-        `user-${userId}`
-      );
+  socket.on('join-admin-room', () => {
+    socket.join('admin-room');
 
-      console.log(
-        `User ${userId} joined their room`
-      );
-    }
-  );
+    console.log('Admin joined admin room');
+  });
 
-  socket.on(
-    'join-admin-room',
-    () => {
-
-      socket.join(
-        'admin-room'
-      );
-
-      console.log(
-        'Admin joined admin room'
-      );
-    }
-  );
-
-  socket.on(
-    'disconnect',
-    () => {
-
-      console.log(
-        `User disconnected: ${socket.id}`
-      );
-    }
-  );
+  socket.on('disconnect', () => {
+    console.log(
+      `User disconnected: ${socket.id}`
+    );
+  });
 });
 
 // ================================================================
@@ -392,18 +375,15 @@ io.on('connection', (socket) => {
 // ================================================================
 
 app.get('/', (req, res) => {
-
   res.status(200).json({
-
     success: true,
-
     status: 'online',
 
     message:
       'Vani Systems Backend API is running successfully.',
 
     frontend:
-      'https://vanisystems.in',
+      'https://rishabh.vanisystems.in',
 
     timestamp:
       new Date().toISOString()
@@ -415,11 +395,8 @@ app.get('/', (req, res) => {
 // ================================================================
 
 app.get('/health', (req, res) => {
-
   res.status(200).json({
-
     success: true,
-
     status: 'online',
 
     message:
@@ -499,25 +476,13 @@ app.use(
   candidateRoutes
 );
 
-app.use(
-  "/api/videos",
-  videoGalleryRoutes
-);
-
-app.use(
-  "/api/contact-queries",
-  contactQueryRoutes
-);
-
-app.get(
-  '/api/gallery',
-  galleryController.getGalleryImages
-);
-
 // ================================================================
 // GALLERY ROUTES
 // ================================================================
-
+//
+// POST /api/gallery/upload
+// GET  /api/gallery
+//
 app.use(
   '/api/gallery',
   galleryRoutes
@@ -528,16 +493,14 @@ app.use(
 // ================================================================
 
 app.get('/api/health', (req, res) => {
-
   res.status(200).json({
-
     status: 'success',
 
     message:
       'Server is running',
 
     frontend:
-      'https://vanisystems.in',
+      'https://rishabh.vanisystems.in',
 
     cors: 'enabled',
 
@@ -568,9 +531,7 @@ const PORT =
   process.env.PORT || 5000;
 
 const startServer = async () => {
-
   try {
-
     // Connect MongoDB
     await connectDB();
 
@@ -579,7 +540,6 @@ const startServer = async () => {
       PORT,
       '0.0.0.0',
       () => {
-
         console.log('');
 
         console.log(
@@ -659,14 +619,6 @@ const startServer = async () => {
         );
 
         console.log(
-          `🎥 Video Gallery routes mounted at /api/videos`
-        );
-
-        console.log(
-          `📁 Contact Query routes mounted at /api/contact-queries`
-        );
-
-        console.log(
           `📁 Uploads served from /uploads`
         );
 
@@ -675,7 +627,7 @@ const startServer = async () => {
         );
 
         console.log(
-          `🌐 Frontend: https://vanisystems.in`
+          `🌐 Plesk Frontend: https://rishabh.vanisystems.in`
         );
 
         console.log(
@@ -753,3 +705,6 @@ module.exports = {
   app,
   io
 };
+
+
+
