@@ -35,6 +35,9 @@ const couponRoutes = require('./Routes/coupons');
 const dashboardRoutes = require('./Routes/dashboard');
 const candidateRoutes = require('./Routes/candidates');
 const galleryRoutes = require('./Routes/gallery');
+const videoGalleryRoutes = require("./Routes/videoGalleryRoutes");
+const contactQueryRoutes = require("./Routes/contactQueryRoutes");
+
 
 // Initialize Express app
 const app = express();
@@ -476,6 +479,9 @@ app.use(
   candidateRoutes
 );
 
+
+app.use("/api/contact-queries", contactQueryRoutes);
+app.use("/api/videos", videoGalleryRoutes);
 // ================================================================
 // GALLERY ROUTES
 // ================================================================
