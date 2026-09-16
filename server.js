@@ -129,10 +129,11 @@ const corsOptions = {
   preflightContinue: false
 };
 
+
+
 app.use(cors(corsOptions));
 
-// Explicit OPTIONS / preflight handling
-app.options('*', cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 // ================================================================
 // SOCKET.IO SETUP
