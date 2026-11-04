@@ -1209,8 +1209,6 @@
 //   };
 
 
-
-
 const {
   generateToken,
   generateRefreshToken
@@ -1641,8 +1639,6 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // REQUIRED EMAIL
-
     if (!email || typeof email !== 'string') {
       return res.status(400).json({
         success: false,
@@ -1650,11 +1646,7 @@ exports.forgotPassword = async (req, res) => {
       });
     }
 
-    // NORMALIZE EMAIL
-
     const normalizedEmail = email.trim().toLowerCase();
-
-    // FIND USER
 
     user = await User.findOne({
       email: normalizedEmail
@@ -1667,18 +1659,19 @@ exports.forgotPassword = async (req, res) => {
       });
     }
 
-    // ADMIN CHECK
-
-    if (user.role === 'admin') {  
+    if (user.role === 'admin') {
       return res.status(403).json({
         success: false,
         error: 'Admin users cannot use forgot password. Please contact system administrator.'
       });
     }
 
-    // EMAIL CONFIGURATION CHECK
+    // EMAIL CONFIGURATION
 
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    const emailUser = process.env.EMAIL_USER;
+    const emailPass = process.env.EMAIL_PASS;
+
+    if (!emailUser || !emailPass) {
       console.error('EMAIL_USER or EMAIL_PASS is missing');
 
       return res.status(500).json({
@@ -1687,11 +1680,50 @@ exports.forgotPassword = async (req, res) => {
       });
     }
 
-    // FRONTEND URL CHECK
+    // FRONTEND URL
 
     const frontendUrl = (
       process.env.FRONTEND_URL || 'http://localhost:5173'
     ).replace(/\/+$/, '');
+
+    // SMTP SETTINGS
+
+    const smtpHost = process.env.EMAIL_HOST || 'smtp.gmail.com';
+    const smtpPort = Number(process.env.EMAIL_PORT) || 587;
+
+    if (![465, 587].includes(smtpPort)) {
+      return res.status(500).json({
+        success: false,
+        error: 'Invalid SMTP port configuration'
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000
+    });
+
+    // VERIFY SMTP CONNECTION
+
+    try {
+      await transporter.verify();
+      console.log('GMAIL SMTP VERIFIED SUCCESSFULLY');
+    } catch (smtpError) {
+      console.error('Gmail SMTP verification failed:', smtpError);
+
+      return res.status(500).json({
+        success: false,
+        error: 'Gmail SMTP connection failed. Check server email configuration.'
+      });
+    }
 
     // CREATE RESET TOKEN
 
@@ -1701,57 +1733,10 @@ exports.forgotPassword = async (req, res) => {
       Date.now() + 60 * 60 * 1000
     );
 
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = resetTokenExpiry;
-
-    await user.save({
-      validateBeforeSave: false
-    });
-
-    // GMAIL SMTP TRANSPORTER
-
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-
-      port: Number(process.env.EMAIL_PORT) || 587,
-
-      secure: Number(process.env.EMAIL_PORT) === 465,
-
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
-    // VERIFY SMTP CONNECTION
-
-    try {
-      await transporter.verify();
-
-      console.log('======================================');
-      console.log('GMAIL SMTP VERIFIED SUCCESSFULLY');
-      console.log('======================================');
-
-    } catch (smtpError) {
-      console.error('Gmail SMTP verification failed:', smtpError.message);
-
-      user.resetToken = null;
-      user.resetTokenExpiry = null;
-
-      await user.save({
-        validateBeforeSave: false
-      });
-
-      return res.status(500).json({
-        success: false,
-        error: 'Gmail SMTP connection failed. Check EMAIL_USER and EMAIL_PASS.'
-      });
-    }
-
-    // GENERATE RESET LINK
+    // RESET LINK
 
     const resetLink =
-      `${frontendUrl}/reset-password?token=${resetToken}`;
+      `${frontendUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
     // EMAIL CONTENT
 
@@ -1760,7 +1745,7 @@ exports.forgotPassword = async (req, res) => {
     const mailOptions = {
       from: {
         name: 'Vani Systems',
-        address: process.env.EMAIL_USER
+        address: emailUser
       },
 
       to: user.email,
@@ -1824,7 +1809,6 @@ Vani Systems Team
             </p>
 
             <div style="margin:30px 0;">
-
               <a href="${resetLink}" style="
                 display:inline-block;
                 background:#0759d6;
@@ -1836,7 +1820,6 @@ Vani Systems Team
               ">
                 Reset Password
               </a>
-
             </div>
 
             <p>
@@ -1870,34 +1853,24 @@ Vani Systems Team
             </p>
 
           </div>
-
         </body>
         </html>
       `
     };
 
-    // SEND EMAIL
+    // SEND EMAIL FIRST
 
-    console.log('\n========== PASSWORD RESET EMAIL ==========');
-
-    console.log('Sender:', process.env.EMAIL_USER);
+    console.log('========== PASSWORD RESET EMAIL ==========');
+    console.log('Sender:', emailUser);
     console.log('Recipient:', user.email);
-    console.log('SMTP Host:', process.env.EMAIL_HOST || 'smtp.gmail.com');
+    console.log('SMTP Host:', smtpHost);
 
     let mailResult;
 
     try {
       mailResult = await transporter.sendMail(mailOptions);
-
     } catch (mailError) {
-      console.error('EMAIL SENDING FAILED:', mailError.message);
-
-      user.resetToken = null;
-      user.resetTokenExpiry = null;
-
-      await user.save({
-        validateBeforeSave: false
-      });
+      console.error('EMAIL SENDING FAILED:', mailError);
 
       return res.status(500).json({
         success: false,
@@ -1905,15 +1878,12 @@ Vani Systems Team
       });
     }
 
-    // DELIVERY DIAGNOSTICS
+    // CHECK SMTP ACCEPTANCE
 
     console.log('Message ID:', mailResult.messageId);
     console.log('Accepted:', mailResult.accepted);
     console.log('Rejected:', mailResult.rejected);
     console.log('SMTP Response:', mailResult.response);
-    console.log('Envelope:', mailResult.envelope);
-
-    console.log('==========================================\n');
 
     const acceptedEmails = (mailResult.accepted || []).map(
       item => String(item.address || item).toLowerCase()
@@ -1934,22 +1904,23 @@ Vani Systems Team
     if (!recipientAccepted || recipientRejected) {
       console.error('Recipient was not accepted by SMTP');
 
-      user.resetToken = null;
-      user.resetTokenExpiry = null;
-
-      await user.save({
-        validateBeforeSave: false
-      });
-
       return res.status(500).json({
         success: false,
         error: 'Email recipient was not accepted by Gmail'
       });
     }
 
-    // SUCCESS
+    // SAVE TOKEN ONLY AFTER SMTP ACCEPTANCE
 
-    console.log('PASSWORD RESET EMAIL ACCEPTED BY GMAIL');
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = resetTokenExpiry;
+
+    await user.save({
+      validateBeforeSave: false
+    });
+
+    console.log('PASSWORD RESET EMAIL ACCEPTED BY GMAIL SMTP');
+    console.log('==========================================');
 
     return res.status(200).json({
       success: true,
@@ -1958,25 +1929,6 @@ Vani Systems Team
 
   } catch (error) {
     console.error('Forgot password error:', error);
-
-    // CLEANUP RESET TOKEN IF REQUEST FAILED
-
-    if (user) {
-      try {
-        user.resetToken = null;
-        user.resetTokenExpiry = null;
-
-        await user.save({
-          validateBeforeSave: false
-        });
-
-      } catch (cleanupError) {
-        console.error(
-          'Reset token cleanup error:',
-          cleanupError.message
-        );
-      }
-    }
 
     return res.status(500).json({
       success: false,
@@ -1998,16 +1950,12 @@ exports.resetPassword = async (req, res) => {
       confirmPassword
     } = req.body;
 
-    // REQUIRED FIELDS
-
     if (!token || !newPassword || !confirmPassword) {
       return res.status(400).json({
         success: false,
         error: 'Token, new password and confirm password are required'
       });
     }
-
-    // PASSWORD LENGTH
 
     if (newPassword.length < 6) {
       return res.status(400).json({
@@ -2016,16 +1964,12 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    // PASSWORD MATCH
-
     if (newPassword !== confirmPassword) {
       return res.status(400).json({
         success: false,
         error: 'New password and confirm password do not match'
       });
     }
-
-    // FIND USER WITH VALID RESET TOKEN
 
     const user = await User.findOne({
       resetToken: token,
@@ -2053,8 +1997,6 @@ exports.resetPassword = async (req, res) => {
     user.resetToken = null;
     user.resetTokenExpiry = null;
 
-    // SAVE USER
-
     await user.save();
 
     return res.status(200).json({
@@ -2071,7 +2013,6 @@ exports.resetPassword = async (req, res) => {
     });
   }
 };
-
 
 
 
