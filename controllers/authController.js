@@ -1209,6 +1209,8 @@
 //   };
 
 
+
+
 const {
   generateToken,
   generateRefreshToken
@@ -1220,14 +1222,28 @@ const crypto = require('crypto');
 
 const User = require('../models/User');
 
-/*
-|--------------------------------------------------------------------------
-| REGISTER
-|--------------------------------------------------------------------------
-| POST /api/auth/register
-| Public
-|--------------------------------------------------------------------------
-*/
+// =====================================================
+// HELPER: HTML ESCAPE
+// =====================================================
+
+const escapeHtml = (value = '') => {
+  return String(value).replace(/[&<>"']/g, (char) => {
+    const entities = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    };
+
+    return entities[char];
+  });
+};
+
+// =====================================================
+// REGISTER
+// POST /api/auth/register
+// =====================================================
 
 exports.register = async (req, res) => {
   try {
@@ -1238,12 +1254,7 @@ exports.register = async (req, res) => {
       confirmPassword
     } = req.body;
 
-    if (
-      !name ||
-      !email ||
-      !password ||
-      !confirmPassword
-    ) {
+    if (!name || !email || !password || !confirmPassword) {
       return res.status(400).json({
         success: false,
         error: 'Name, email, password and confirm password are required'
@@ -1314,9 +1325,9 @@ exports.register = async (req, res) => {
     console.error('Register error:', error);
 
     if (error.name === 'ValidationError') {
-      const errors = Object.values(
-        error.errors
-      ).map(err => err.message);
+      const errors = Object.values(error.errors).map(
+        err => err.message
+      );
 
       return res.status(400).json({
         success: false,
@@ -1338,22 +1349,14 @@ exports.register = async (req, res) => {
   }
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| LOGIN
-|--------------------------------------------------------------------------
-| POST /api/auth/login
-| Public
-|--------------------------------------------------------------------------
-*/
+// =====================================================
+// LOGIN
+// POST /api/auth/login
+// =====================================================
 
 exports.login = async (req, res) => {
   try {
-    const {
-      email,
-      password
-    } = req.body;
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -1389,9 +1392,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    const isPasswordMatch = await user.matchPassword(
-      password
-    );
+    const isPasswordMatch = await user.matchPassword(password);
 
     if (!isPasswordMatch) {
       return res.status(401).json({
@@ -1446,21 +1447,14 @@ exports.login = async (req, res) => {
   }
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| GET CURRENT USER
-|--------------------------------------------------------------------------
-| GET /api/auth/me
-| Private
-|--------------------------------------------------------------------------
-*/
+// =====================================================
+// GET CURRENT USER
+// GET /api/auth/me
+// =====================================================
 
 exports.getMe = async (req, res) => {
   try {
-    const user = await User.findById(
-      req.user.id
-    );
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({
@@ -1495,24 +1489,16 @@ exports.getMe = async (req, res) => {
   }
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| UPDATE PROFILE
-|--------------------------------------------------------------------------
-| PUT /api/auth/update-profile
-| Private
-| ONLY NAME
-|--------------------------------------------------------------------------
-*/
+// =====================================================
+// UPDATE PROFILE
+// PUT /api/auth/update-profile
+// =====================================================
 
 exports.updateProfile = async (req, res) => {
   try {
     const { name } = req.body;
 
-    const user = await User.findById(
-      req.user.id
-    );
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({
@@ -1550,15 +1536,10 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| CHANGE PASSWORD
-|--------------------------------------------------------------------------
-| POST /api/auth/change-password
-| Private
-|--------------------------------------------------------------------------
-*/
+// =====================================================
+// CHANGE PASSWORD
+// POST /api/auth/change-password
+// =====================================================
 
 exports.changePassword = async (req, res) => {
   try {
@@ -1568,11 +1549,7 @@ exports.changePassword = async (req, res) => {
       confirmPassword
     } = req.body;
 
-    if (
-      !currentPassword ||
-      !newPassword ||
-      !confirmPassword
-    ) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({
         success: false,
         error: 'Current password, new password and confirm password are required'
@@ -1593,9 +1570,7 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    const user = await User.findById(
-      req.user.id
-    ).select('+password');
+    const user = await User.findById(req.user.id).select('+password');
 
     if (!user) {
       return res.status(404).json({
@@ -1604,9 +1579,7 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    const isMatch = await user.matchPassword(
-      currentPassword
-    );
+    const isMatch = await user.matchPassword(currentPassword);
 
     if (!isMatch) {
       return res.status(401).json({
@@ -1635,15 +1608,10 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| LOGOUT
-|--------------------------------------------------------------------------
-| POST /api/auth/logout
-| Private
-|--------------------------------------------------------------------------
-*/
+// =====================================================
+// LOGOUT
+// POST /api/auth/logout
+// =====================================================
 
 exports.logout = async (req, res) => {
   try {
@@ -1662,15 +1630,10 @@ exports.logout = async (req, res) => {
   }
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| FORGOT PASSWORD
-|--------------------------------------------------------------------------
-| POST /api/auth/forgot-password
-| Public
-|--------------------------------------------------------------------------
-*/
+// =====================================================
+// FORGOT PASSWORD
+// POST /api/auth/forgot-password
+// =====================================================
 
 exports.forgotPassword = async (req, res) => {
   let user = null;
@@ -1678,12 +1641,16 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
+    // REQUIRED EMAIL
+
     if (!email || typeof email !== 'string') {
       return res.status(400).json({
         success: false,
         error: 'Please provide email address'
       });
     }
+
+    // NORMALIZE EMAIL
 
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -1702,211 +1669,37 @@ exports.forgotPassword = async (req, res) => {
 
     // ADMIN CHECK
 
-    if (user.role === 'admin') {
+    if (user.role === 'admin') {  
       return res.status(403).json({
         success: false,
         error: 'Admin users cannot use forgot password. Please contact system administrator.'
       });
     }
 
-    // EMAIL CONFIGURATION
+    // EMAIL CONFIGURATION CHECK
 
-    const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS;
-
-    if (!emailUser || !emailPass) {
-      console.error('EMAIL_USER or EMAIL_PASS missing');
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('EMAIL_USER or EMAIL_PASS is missing');
 
       return res.status(500).json({
         success: false,
-        error: 'Email service is not configured on the server.'
+        error: 'Email configuration is missing on server'
       });
     }
 
-    // FRONTEND URL
+    // FRONTEND URL CHECK
 
     const frontendUrl = (
-      process.env.FRONTEND_URL ||
-      'http://localhost:5173'
+      process.env.FRONTEND_URL || 'http://localhost:5173'
     ).replace(/\/+$/, '');
 
     // CREATE RESET TOKEN
 
-    const resetToken = crypto
-      .randomBytes(32)
-      .toString('hex');
+    const resetToken = crypto.randomBytes(32).toString('hex');
 
     const resetTokenExpiry = new Date(
       Date.now() + 60 * 60 * 1000
     );
-
-    const resetLink =
-      `${frontendUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
-
-    // SAFE USER NAME
-
-    const safeName = String(user.name || 'User')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-
-    // SMTP TRANSPORTER
-
-    const smtpPort = Number(
-      process.env.EMAIL_PORT
-    ) || 587;
-
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: smtpPort,
-      secure: smtpPort === 465,
-
-      auth: {
-        user: emailUser,
-        pass: emailPass
-      },
-
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000
-    });
-
-    // EMAIL CONTENT
-
-    const mailOptions = {
-      from: {
-        name: 'Vani Systems',
-        address: emailUser
-      },
-
-      to: normalizedEmail,
-
-      subject: 'Password Reset Request - Vani Systems',
-
-      text: `
-Hello ${user.name || 'User'},
-
-We received a request to reset your Vani Systems account password.
-
-Reset your password using this link:
-
-${resetLink}
-
-This link expires in 1 hour.
-
-If you did not request this reset, ignore this email.
-
-Vani Systems Team
-      `,
-
-      html: `
-        <div style="
-          font-family:Arial,sans-serif;
-          max-width:600px;
-          margin:20px auto;
-          padding:25px;
-          border:1px solid #e5e7eb;
-          border-radius:10px;
-          color:#333;
-        ">
-
-          <h2 style="color:#102b46;">
-            Password Reset Request
-          </h2>
-
-          <p>Hello ${safeName},</p>
-
-          <p>
-            We received a request to reset your
-            Vani Systems account password.
-          </p>
-
-          <p>
-            Click the button below to reset your password:
-          </p>
-
-          <div style="margin:25px 0;">
-
-            <a href="${resetLink}" style="
-              display:inline-block;
-              padding:13px 25px;
-              background:#105bd8;
-              color:#ffffff;
-              text-decoration:none;
-              border-radius:6px;
-              font-weight:bold;
-            ">
-              Reset Password
-            </a>
-
-          </div>
-
-          <p>
-            Or copy this link into your browser:
-          </p>
-
-          <p style="
-            word-break:break-all;
-            background:#f3f4f6;
-            padding:12px;
-            border-radius:5px;
-          ">
-            ${resetLink}
-          </p>
-
-          <p>
-            <strong>
-              This link will expire in 1 hour.
-            </strong>
-          </p>
-
-          <p>
-            If you did not request this password reset,
-            please ignore this email.
-          </p>
-
-          <hr style="border:0;border-top:1px solid #eee;">
-
-          <p>
-            Regards,<br>
-            <strong>Vani Systems Team</strong>
-          </p>
-
-        </div>
-      `
-    };
-
-    // VERIFY SMTP CONNECTION
-
-    await transporter.verify();
-
-    console.log('GMAIL SMTP VERIFIED SUCCESSFULLY');
-
-    // SEND EMAIL
-
-    const mailResult = await transporter.sendMail(
-      mailOptions
-    );
-
-    // CHECK ACCEPTED RECIPIENT
-
-    const acceptedRecipients = (
-      mailResult.accepted || []
-    ).map(value => String(value).toLowerCase());
-
-    const recipientAccepted = acceptedRecipients.includes(
-      normalizedEmail
-    );
-
-    if (!recipientAccepted) {
-      throw new Error(
-        'SMTP did not accept the requested recipient'
-      );
-    }
-
-    // SAVE TOKEN AFTER SMTP ACCEPTANCE
 
     user.resetToken = resetToken;
     user.resetTokenExpiry = resetTokenExpiry;
@@ -1915,27 +1708,258 @@ Vani Systems Team
       validateBeforeSave: false
     });
 
-    console.log('====================================');
-    console.log('PASSWORD RESET EMAIL SENT');
+    // GMAIL SMTP TRANSPORTER
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+
+      port: Number(process.env.EMAIL_PORT) || 587,
+
+      secure: Number(process.env.EMAIL_PORT) === 465,
+
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    // VERIFY SMTP CONNECTION
+
+    try {
+      await transporter.verify();
+
+      console.log('======================================');
+      console.log('GMAIL SMTP VERIFIED SUCCESSFULLY');
+      console.log('======================================');
+
+    } catch (smtpError) {
+      console.error('Gmail SMTP verification failed:', smtpError.message);
+
+      user.resetToken = null;
+      user.resetTokenExpiry = null;
+
+      await user.save({
+        validateBeforeSave: false
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Gmail SMTP connection failed. Check EMAIL_USER and EMAIL_PASS.'
+      });
+    }
+
+    // GENERATE RESET LINK
+
+    const resetLink =
+      `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    // EMAIL CONTENT
+
+    const safeName = escapeHtml(user.name || 'User');
+
+    const mailOptions = {
+      from: {
+        name: 'Vani Systems',
+        address: process.env.EMAIL_USER
+      },
+
+      to: user.email,
+
+      subject: 'Password Reset Request - Vani Systems',
+
+      text: `
+Hello ${user.name || 'User'},
+
+We received a request to reset your password.
+
+Open this link to reset your password:
+
+${resetLink}
+
+This link expires in 1 hour.
+
+If you did not request this, ignore this email.
+
+Vani Systems Team
+      `,
+
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Password Reset</title>
+        </head>
+
+        <body style="
+          margin:0;
+          padding:20px;
+          background:#f4f6f9;
+          font-family:Arial,sans-serif;
+        ">
+
+          <div style="
+            max-width:600px;
+            margin:20px auto;
+            background:#ffffff;
+            padding:30px;
+            border-radius:10px;
+            border:1px solid #e5e7eb;
+          ">
+
+            <h2 style="color:#102a43;">
+              Password Reset Request
+            </h2>
+
+            <p>Hello ${safeName},</p>
+
+            <p>
+              We received a request to reset your password
+              for your Vani Systems account.
+            </p>
+
+            <p>
+              Click the button below to reset your password:
+            </p>
+
+            <div style="margin:30px 0;">
+
+              <a href="${resetLink}" style="
+                display:inline-block;
+                background:#0759d6;
+                color:#ffffff;
+                padding:14px 25px;
+                border-radius:6px;
+                text-decoration:none;
+                font-weight:bold;
+              ">
+                Reset Password
+              </a>
+
+            </div>
+
+            <p>
+              If the button does not work, copy this link:
+            </p>
+
+            <p style="
+              word-break:break-all;
+              background:#f3f4f6;
+              padding:12px;
+              border-radius:5px;
+              color:#0759d6;
+            ">
+              ${resetLink}
+            </p>
+
+            <p>
+              <strong>This link expires in 1 hour.</strong>
+            </p>
+
+            <p>
+              If you did not request a password reset,
+              you can safely ignore this email.
+            </p>
+
+            <hr style="border:none;border-top:1px solid #eee;margin:25px 0;">
+
+            <p style="color:#777;">
+              Best regards,<br>
+              Vani Systems Team
+            </p>
+
+          </div>
+
+        </body>
+        </html>
+      `
+    };
+
+    // SEND EMAIL
+
+    console.log('\n========== PASSWORD RESET EMAIL ==========');
+
+    console.log('Sender:', process.env.EMAIL_USER);
+    console.log('Recipient:', user.email);
+    console.log('SMTP Host:', process.env.EMAIL_HOST || 'smtp.gmail.com');
+
+    let mailResult;
+
+    try {
+      mailResult = await transporter.sendMail(mailOptions);
+
+    } catch (mailError) {
+      console.error('EMAIL SENDING FAILED:', mailError.message);
+
+      user.resetToken = null;
+      user.resetTokenExpiry = null;
+
+      await user.save({
+        validateBeforeSave: false
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Unable to send password reset email. Please check Gmail SMTP configuration.'
+      });
+    }
+
+    // DELIVERY DIAGNOSTICS
+
     console.log('Message ID:', mailResult.messageId);
-    console.log('Recipient:', normalizedEmail);
     console.log('Accepted:', mailResult.accepted);
     console.log('Rejected:', mailResult.rejected);
-    console.log('====================================');
+    console.log('SMTP Response:', mailResult.response);
+    console.log('Envelope:', mailResult.envelope);
+
+    console.log('==========================================\n');
+
+    const acceptedEmails = (mailResult.accepted || []).map(
+      item => String(item.address || item).toLowerCase()
+    );
+
+    const rejectedEmails = (mailResult.rejected || []).map(
+      item => String(item.address || item).toLowerCase()
+    );
+
+    const recipientAccepted = acceptedEmails.includes(
+      user.email.toLowerCase()
+    );
+
+    const recipientRejected = rejectedEmails.includes(
+      user.email.toLowerCase()
+    );
+
+    if (!recipientAccepted || recipientRejected) {
+      console.error('Recipient was not accepted by SMTP');
+
+      user.resetToken = null;
+      user.resetTokenExpiry = null;
+
+      await user.save({
+        validateBeforeSave: false
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Email recipient was not accepted by Gmail'
+      });
+    }
+
+    // SUCCESS
+
+    console.log('PASSWORD RESET EMAIL ACCEPTED BY GMAIL');
 
     return res.status(200).json({
       success: true,
-      message: 'Password reset email accepted by Gmail SMTP. Please check your inbox and spam folder.'
+      message: 'Password reset email accepted by Gmail SMTP'
     });
 
   } catch (error) {
+    console.error('Forgot password error:', error);
 
-    console.error(
-      'FORGOT PASSWORD ERROR:',
-      error.message
-    );
-
-    // CLEAR TOKEN AFTER FAILURE
+    // CLEANUP RESET TOKEN IF REQUEST FAILED
 
     if (user) {
       try {
@@ -1946,36 +1970,28 @@ Vani Systems Team
           validateBeforeSave: false
         });
 
-      } catch (dbError) {
+      } catch (cleanupError) {
         console.error(
-          'Reset token cleanup failed:',
-          dbError.message
+          'Reset token cleanup error:',
+          cleanupError.message
         );
       }
     }
 
-    // NO LOCAL BYPASS OR FAKE SUCCESS
-
     return res.status(500).json({
       success: false,
-      error: 'Unable to send password reset email. Please check SMTP configuration and recipient email address.'
+      error: 'Server error while processing forgot password'
     });
   }
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| RESET PASSWORD
-|--------------------------------------------------------------------------
-| POST /api/auth/reset-password
-| Public
-|--------------------------------------------------------------------------
-*/
+// =====================================================
+// RESET PASSWORD
+// POST /api/auth/reset-password
+// =====================================================
 
 exports.resetPassword = async (req, res) => {
   try {
-
     const {
       token,
       newPassword,
@@ -1984,11 +2000,7 @@ exports.resetPassword = async (req, res) => {
 
     // REQUIRED FIELDS
 
-    if (
-      !token ||
-      !newPassword ||
-      !confirmPassword
-    ) {
+    if (!token || !newPassword || !confirmPassword) {
       return res.status(400).json({
         success: false,
         error: 'Token, new password and confirm password are required'
@@ -2013,15 +2025,13 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    // FIND USER WITH VALID TOKEN
+    // FIND USER WITH VALID RESET TOKEN
 
     const user = await User.findOne({
       resetToken: token,
-
       resetTokenExpiry: {
         $gt: new Date()
       }
-
     }).select(
       '+resetToken +resetTokenExpiry +password +confirmPassword'
     );
@@ -2033,7 +2043,7 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    // SET NEW PASSWORD
+    // UPDATE PASSWORD
 
     user.password = newPassword;
     user.confirmPassword = confirmPassword;
@@ -2053,11 +2063,7 @@ exports.resetPassword = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error(
-      'Reset password error:',
-      error
-    );
+    console.error('Reset password error:', error);
 
     return res.status(500).json({
       success: false,
@@ -2065,6 +2071,7 @@ exports.resetPassword = async (req, res) => {
     });
   }
 };
+
 
 
 
